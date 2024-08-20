@@ -54,7 +54,7 @@ $(BUILD)/blocks16x16_spec.bin: $(SPECSRC)/chronosm.bin
 	dd if=$< of=$@ bs=32 skip=1024 count=128
 
 $(BUILD)/blocks16x16.bin: $(BUILD)/blocks16x16_spec.bin
-	$(SCRIPTS)/tileconv.py $< $@
+	$(SCRIPTS)/tileconv.py -2 $< $@
 
 $(BUILD)/map.bin: $(SPECSRC)/chronosm.bin
 #	dd if=$< of=$@ bs=1 skip=$$(( 0x8000 * 1 )) count=$$(( 0x36e2 * 1 ))

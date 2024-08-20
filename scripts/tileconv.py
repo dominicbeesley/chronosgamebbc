@@ -14,16 +14,17 @@ def usage(fh=sys.stdout, msg=None, exit=None):
 
 
 def main(argv):
-	inputfile = ''
-	outputfile = ''
+	bpp = 1
 	try:
-		opts, args = getopt.getopt(argv,"hi:o:",["ifile=","ofile="])
+		opts, args = getopt.getopt(argv,"h2",["bpp2"])
 	except getopt.GetoptError as e:
 		usage(fh=sys.stderr, msg=f"ERROR:Parameter error: {e}", exit=1)
 		
 	for opt, arg in opts:
 		if opt == '-h':
 			usage(exit=0)
+		elif opt == '-2':
+			bpp = 2
 
 	if len(args)<2:
 		usage(fh=sys.stderr, msg="Too few arguments", exit=1)
@@ -50,17 +51,34 @@ def main(argv):
 
 		o = 0
 		for c in range(ntiles):
-			odata = bytearray(stride_in * height)		
+			odata = bytearray(stride_in * height * bpp)		
 			for r in range(height):
 				for c in range(stride_in):
-					odata[(r % 8) + (c * 8) + (stride_in * 8 * (r // 8))] = data[o + c + r * stride_in]
+					d = data[o + c + r * stride_in]
+					if bpp == 1:
+						odata[(r % 8) + (c * 8) + (stride_in * 8 * (r // 8))] = d
+					if bpp == 2:
+						oa = (r % 8) + (c * 8 * bpp) + (stride_in * 8 * bpp * (r // 8))
+						d2 = morebpp(d, bpp)
+						odata[oa] = d2 >> 8
+						odata[oa+8] = d2 & 0xFF
 
 			fo.write(odata)
 			o = o + stride_in * height
 	finally:
 		fo.close()
 
-
+def morebpp(d, bpp):
+	r = 0
+	s = 8 // bpp
+	m = (1 << s) - 1	
+	ss = 0
+	for n in range(bpp):
+		for b in range(bpp):
+			r = r | ((d & m) << ss)
+			ss = ss + s
+		d = d >> s
+	return r
 
 if __name__ == "__main__":
 	main(sys.argv[1:])

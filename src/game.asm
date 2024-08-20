@@ -4,7 +4,8 @@
 		.include "mosrom.inc"
 
 TILE_BLANK=$7F
-SCREEN_STRIDE := 40*8
+SCREEN_STRIDE := 40*8*2
+PLAYFIELD_TOP := $8000-16*SCREEN_STRIDE
 
 		.zeropage
 zp_tmp:		.res 	1
@@ -22,16 +23,16 @@ zp_map_rle:	.res	1
 		.code
 
 
-		; mode 4
-		lda	#22
-		jsr	OSWRCH
-		lda	#4
-		jsr	OSWRCH
+;		; mode 1
+;		lda	#22
+;		jsr	OSWRCH
+;		lda	#1
+;		jsr	OSWRCH
 
 
 		jsr	map_init
 
-@main_loop:	LDXY	$5800+38*8
+@main_loop:	LDXY	PLAYFIELD_TOP+38*16
 		stx	zp_tiledst_ptr
 		sty	zp_tiledst_ptr+1
 		lda	#8
@@ -43,6 +44,12 @@ zp_map_rle:	.res	1
 		dec	zp_tmp
 		bne	@rowloop
 		
+		lda	#19
+		jsr	OSBYTE		
+		jsr	scroll
+		lda	#19
+		jsr	OSBYTE		
+		jsr	scroll
 		lda	#19
 		jsr	OSBYTE		
 		jsr	scroll
@@ -90,21 +97,21 @@ blit_tile:	ldy	#0
 		jsr	blit_tile_half
 
 		lda	zp_tiledst_ptr
-		adc	#<(SCREEN_STRIDE-16)
+		adc	#<(SCREEN_STRIDE-32)
 		sta	zp_tiledst_ptr
 
 		lda	zp_tiledst_ptr+1
-		adc	#>(SCREEN_STRIDE-16)
+		adc	#>(SCREEN_STRIDE-32)
 		sta	zp_tiledst_ptr+1
 
 		jsr	blit_tile_half
 
 		lda	zp_tiledst_ptr
-		adc	#<(SCREEN_STRIDE+16)
+		adc	#<(SCREEN_STRIDE+32)
 		sta	zp_tiledst_ptr
 
 		lda	zp_tiledst_ptr+1
-		adc	#>(SCREEN_STRIDE+16)
+		adc	#>(SCREEN_STRIDE+32)
 		sta	zp_tiledst_ptr+1
 		
 		rts
@@ -112,6 +119,12 @@ blit_tile:	ldy	#0
 blit_tile_half:
 		ldx	#8
 @l1:		lda	(zp_tilesrc_ptr),Y
+		sta	(zp_tiledst_ptr),Y
+		iny
+		lda	(zp_tilesrc_ptr),Y
+		sta	(zp_tiledst_ptr),Y
+		iny
+		lda	(zp_tilesrc_ptr),Y
 		sta	(zp_tiledst_ptr),Y
 		iny
 		lda	(zp_tilesrc_ptr),Y
@@ -130,8 +143,6 @@ get_tile_src_ptr:
 		ror	A
 		ror	zp_tilesrc_ptr+1
 		ror	A
-		ror	zp_tilesrc_ptr+1
-		ror	A
 		adc	#<blockx16x16
 		sta	zp_tilesrc_ptr
 		lda	zp_tilesrc_ptr+1
@@ -139,13 +150,13 @@ get_tile_src_ptr:
 		sta	zp_tilesrc_ptr+1
 		rts
 
-scroll:		lda	#$58
+scroll:		lda	#>PLAYFIELD_TOP
 		sta	@src+2
 		sta	@dest+2
 
 
 		ldx	#0
-		ldy	#$14
+		ldy	#$28
 @l:		
 @src:		lda	a:$0008,X
 @dest:		sta	a:$0000,X
