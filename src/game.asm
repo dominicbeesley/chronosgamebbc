@@ -4,22 +4,23 @@
 		.include "mosrom.inc"
 
 TILE_BLANK=$7F
-SCREEN_STRIDE := 40*8*2
-SCREEN_SIZE   := $2800
-PLAYFIELD_TOP := $8000-16*SCREEN_STRIDE
+PLAYFIELD_STRIDE	:= 32*8*2
+PLAYFIELD_SIZE  	:= $2000
+PLAYFIELD_TOP		:= $8000-16*PLAYFIELD_STRIDE
 
 		.zeropage
-zp_tmp:		.res 	1
-zp_tiledst_ptr:	.res 	2
-zp_tilesrc_ptr:	.res	2
-zp_map_ptr:	.res	2
-zp_map_rle:	.res	1
+zp_tmp:		.res 	1		; temporary
+zp_tiledst_ptr:	.res 	2		; current tile destination in the tile column
+zp_tilesrc_ptr:	.res	2		; current tile source pointer
+zp_map_ptr:	.res	2		; pointer into map data
+zp_map_rle:	.res	1		; if <>0 then repeat this many tile=7F's
+zp_cycle:	.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new tiles every 16
 
 
 SCREEN_TOP	= $5800
 		.data
 playfield_top:	.word	SCREEN_TOP / 8		; start of playfield screen (in crtc coordinates)
-tiles_top:	.word	SCREEN_TOP + 38*16
+tiles_top:	.word	SCREEN_TOP + PLAYFIELD_STRIDE+32
 
 
 		.macro LDXY addr
@@ -53,11 +54,16 @@ tiles_top:	.word	SCREEN_TOP + 38*16
 		dex
 		bpl	@clp
 
-		; set lat c0,c1 for 10k mode
+		; set lat c0,c1 for 8k mode
 		lda	#8+4
 		sta	sheila_SYSVIA_orb
-		lda	#8+5
+		lda	#0+5
 		sta	sheila_SYSVIA_orb
+
+		; blank some bits at left hand side
+		lda	#$38
+		sta	SHEILA_NULA_CTLAUX
+
 
 
 		jsr	setscrtop
@@ -65,7 +71,40 @@ tiles_top:	.word	SCREEN_TOP + 38*16
 		jsr	map_init
 
 @main_loop:
+		jsr	wait_vsync
 
+		; apply nula scroll offset
+		lda	zp_cycle
+		and	#3
+		eor	#3
+		clc
+		rol	A
+		ora	#$20
+		sta	SHEILA_NULA_CTLAUX
+
+
+		lda	zp_cycle
+		and	#$03
+		bne	@not_scroll
+		jsr	scroll
+@not_scroll:
+		lda	zp_cycle
+		and	#$0F
+		bne	@nottiles
+		jsr	render_tiles_column
+@nottiles:
+
+@not_hwscroll:
+
+		inc	zp_cycle
+
+		jmp	@main_loop
+
+		rts
+
+
+render_tiles_column:
+		; set starting address for tiles
 		ldx	tiles_top
 		stx	zp_tiledst_ptr
 		ldy	tiles_top+1
@@ -78,29 +117,8 @@ tiles_top:	.word	SCREEN_TOP + 38*16
 		jsr	blit_tile
 		dec	zp_tmp
 		bne	@rowloop
-		
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	scroll
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	scroll
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	scroll
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	wait_vsync
-		jsr	scroll
 
-
+		; move to next column (expects 4 scrolls to have happened)
 		clc
 		lda	tiles_top
 		adc	#32
@@ -108,14 +126,11 @@ tiles_top:	.word	SCREEN_TOP + 38*16
 		lda	tiles_top+1
 		adc	#0
 		bpl	@s
-		lda	#>SCREEN_TOP
+		sbc	#(>(PLAYFIELD_SIZE))-1
 @s:		sta	tiles_top+1
-
-
-
-		jmp	@main_loop
-
 		rts
+
+
 
 map_init:	lda	#0
 		sta	zp_mos_curROM
@@ -151,13 +166,13 @@ map_get:	ldy	zp_map_rle		; are we doing a run of blanks
 blit_tile_next_line:
 		clc
 		lda	zp_tiledst_ptr
-		adc	#<(SCREEN_STRIDE)
+		adc	#<(PLAYFIELD_STRIDE)
 		sta	zp_tiledst_ptr
 
 		lda	zp_tiledst_ptr+1
-		adc	#>(SCREEN_STRIDE)
+		adc	#>(PLAYFIELD_STRIDE)
 		bpl	@s1
-		sbc	#(>(SCREEN_SIZE))-1
+		sbc	#(>(PLAYFIELD_SIZE))-1
 @s1:		sta	zp_tiledst_ptr+1
 
 		clc
@@ -235,7 +250,7 @@ scroll:		inc	playfield_top
 		lda	playfield_top+1
 		cmp	#$10
 		bcc	@s1
-		sbc	#((>SCREEN_SIZE)/8)
+		sbc	#((>PLAYFIELD_SIZE)/8)
 		sta	playfield_top+1
 @s1:		
 setscrtop:
@@ -266,8 +281,8 @@ blockx16x16:	.incbin "../build/src/blocks16x16.bin"
 
 playfield_CRTC_mode:
 		.byte	$7f				; 0 Horizontal Total	 =128
-		.byte	$50				; 1 Horizontal Displayed =80
-		.byte	$62				; 2 Horizontal Sync	 =&62
+		.byte	$40				; 1 Horizontal Displayed =64
+		.byte	$5A				; 2 Horizontal Sync	 
 		.byte	$28				; 3 HSync Width+VSync	 =&28  VSync=2, HSync Width=8
 		.byte	$26				; 4 Vertical Total	 =38
 		.byte	$00				; 5 Vertial Adjust	 =0
