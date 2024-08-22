@@ -5,6 +5,7 @@
 
 TILE_BLANK=$7F
 SCREEN_STRIDE := 40*8*2
+SCREEN_SIZE   := $2800
 PLAYFIELD_TOP := $8000-16*SCREEN_STRIDE
 
 		.zeropage
@@ -14,6 +15,13 @@ zp_tilesrc_ptr:	.res	2
 zp_map_ptr:	.res	2
 zp_map_rle:	.res	1
 
+
+SCREEN_TOP	= $5800
+		.data
+playfield_top:	.word	SCREEN_TOP / 8		; start of playfield screen (in crtc coordinates)
+tiles_top:	.word	SCREEN_TOP + 38*16
+
+
 		.macro LDXY addr
 		ldx	#<(addr)
 		ldy	#>(addr)
@@ -22,18 +30,45 @@ zp_map_rle:	.res	1
 
 		.code
 
+		sei
 
-;		; mode 1
-;		lda	#22
-;		jsr	OSWRCH
-;		lda	#1
-;		jsr	OSWRCH
+		; stop VIA interrupts
+		lda	#$7F
+		sta	sheila_SYSVIA_ier
+		sta	sheila_USRVIA_ier
 
+		; TODO: other VIA setup - for now assume its ready from MOS
+		lda 	#4   
+		sta 	sheila_SYSVIA_pcr	; vsync \\ CA1 negative-active-edge CA2 input-positive-active-edge CB1 negative-active-edge CB2 input-nagative-active-edge
+
+		; setup CRTC / ULA for our special small mode for playfield
+		lda	#$D8			; mode 1 : 7=%10= mo.1 cursor, 4:1=20k, 3:2 = 40 chars, 1=0 no ttx, 0=0 no flash
+		sta	sheila_VIDPROC_ctl
+
+		ldx	#11
+@clp:		txa
+		sta	sheila_CRTC_reg
+		lda	playfield_CRTC_mode,X
+		sta	sheila_CRTC_dat
+		dex
+		bpl	@clp
+
+		; set lat c0,c1 for 10k mode
+		lda	#8+4
+		sta	sheila_SYSVIA_orb
+		lda	#8+5
+		sta	sheila_SYSVIA_orb
+
+
+		jsr	setscrtop
 
 		jsr	map_init
 
-@main_loop:	LDXY	PLAYFIELD_TOP+38*16
+@main_loop:
+
+		ldx	tiles_top
 		stx	zp_tiledst_ptr
+		ldy	tiles_top+1
 		sty	zp_tiledst_ptr+1
 		lda	#8
 		sta	zp_tmp
@@ -44,18 +79,39 @@ zp_map_rle:	.res	1
 		dec	zp_tmp
 		bne	@rowloop
 		
-		lda	#19
-		jsr	OSBYTE		
+		jsr	wait_vsync
+		jsr	wait_vsync
+		jsr	wait_vsync
+		jsr	wait_vsync
 		jsr	scroll
-		lda	#19
-		jsr	OSBYTE		
+		jsr	wait_vsync
+		jsr	wait_vsync
+		jsr	wait_vsync
+		jsr	wait_vsync
 		jsr	scroll
-		lda	#19
-		jsr	OSBYTE		
+		jsr	wait_vsync
+		jsr	wait_vsync
+		jsr	wait_vsync
+		jsr	wait_vsync
 		jsr	scroll
-		lda	#19
-		jsr	OSBYTE		
+		jsr	wait_vsync
+		jsr	wait_vsync
+		jsr	wait_vsync
+		jsr	wait_vsync
 		jsr	scroll
+
+
+		clc
+		lda	tiles_top
+		adc	#32
+		sta	tiles_top
+		lda	tiles_top+1
+		adc	#0
+		bpl	@s
+		lda	#>SCREEN_TOP
+@s:		sta	tiles_top+1
+
+
 
 		jmp	@main_loop
 
@@ -92,46 +148,49 @@ map_get:	ldy	zp_map_rle		; are we doing a run of blanks
 		rts
 
 
-
-blit_tile:	ldy	#0
-		jsr	blit_tile_half
-
+blit_tile_next_line:
+		clc
 		lda	zp_tiledst_ptr
-		adc	#<(SCREEN_STRIDE-32)
+		adc	#<(SCREEN_STRIDE)
 		sta	zp_tiledst_ptr
 
 		lda	zp_tiledst_ptr+1
-		adc	#>(SCREEN_STRIDE-32)
-		sta	zp_tiledst_ptr+1
+		adc	#>(SCREEN_STRIDE)
+		bpl	@s1
+		sbc	#(>(SCREEN_SIZE))-1
+@s1:		sta	zp_tiledst_ptr+1
+
+		clc
+		lda	zp_tilesrc_ptr
+		adc	#32
+		sta	zp_tilesrc_ptr
+		bcs	@s
+		rts
+@s:		inc	zp_tilesrc_ptr+1
+		rts
+
+blit_tile:	jsr	blit_tile_half
+		jsr	blit_tile_next_line
 
 		jsr	blit_tile_half
-
-		lda	zp_tiledst_ptr
-		adc	#<(SCREEN_STRIDE+32)
-		sta	zp_tiledst_ptr
-
-		lda	zp_tiledst_ptr+1
-		adc	#>(SCREEN_STRIDE+32)
-		sta	zp_tiledst_ptr+1
-		
+		jmp	blit_tile_next_line
 		rts
 
 blit_tile_half:
-		ldx	#8
+		ldy	#31
 @l1:		lda	(zp_tilesrc_ptr),Y
 		sta	(zp_tiledst_ptr),Y
-		iny
+		dey
 		lda	(zp_tilesrc_ptr),Y
 		sta	(zp_tiledst_ptr),Y
-		iny
+		dey
 		lda	(zp_tilesrc_ptr),Y
 		sta	(zp_tiledst_ptr),Y
-		iny
+		dey
 		lda	(zp_tilesrc_ptr),Y
 		sta	(zp_tiledst_ptr),Y
-		iny
-		dex
-		bne	@l1
+		dey
+		bpl	@l1
 		
 		rts
 get_tile_src_ptr:
@@ -150,29 +209,74 @@ get_tile_src_ptr:
 		sta	zp_tilesrc_ptr+1
 		rts
 
-scroll:		lda	#>PLAYFIELD_TOP
-		sta	@src+2
-		sta	@dest+2
+;scroll:		lda	#>PLAYFIELD_TOP
+;		sta	@src+2
+;		sta	@dest+2
+;
+;
+;		ldx	#0
+;		ldy	#$28
+;@l:			
+;@src:		lda	a:$0008,X
+;@dest:		sta	a:$0000,X
+;		inx
+;		bne	@l
+;
+;		inc	@src+2
+;		inc	@dest+2
+;		dey
+;		bne	@l
+;		rts
 
 
-		ldx	#0
-		ldy	#$28
-@l:		
-@src:		lda	a:$0008,X
-@dest:		sta	a:$0000,X
-		inx
-		bne	@l
+scroll:		inc	playfield_top
+		bne	@s1
+		inc	playfield_top+1
+		lda	playfield_top+1
+		cmp	#$10
+		bcc	@s1
+		sbc	#((>SCREEN_SIZE)/8)
+		sta	playfield_top+1
+@s1:		
+setscrtop:
+		lda	#13
+		sta	sheila_CRTC_reg
+		lda	playfield_top
+		sta	sheila_CRTC_dat
+		lda	#12
+		sta	sheila_CRTC_reg
+		lda	playfield_top+1
+		sta	sheila_CRTC_dat
 
-		inc	@src+2
-		inc	@dest+2
-		dey
-		bne	@l
 		rts
 
+wait_vsync:	pha
+		; clear the vsync bit in IFR
+		lda	#$02
+		sta	sheila_SYSVIA_ifr
+@lp:		bit	sheila_SYSVIA_ifr
+		beq	@lp
+		pla
+		rts
 
 
 		.data
 
 blockx16x16:	.incbin "../build/src/blocks16x16.bin"
+
+playfield_CRTC_mode:
+		.byte	$7f				; 0 Horizontal Total	 =128
+		.byte	$50				; 1 Horizontal Displayed =80
+		.byte	$62				; 2 Horizontal Sync	 =&62
+		.byte	$28				; 3 HSync Width+VSync	 =&28  VSync=2, HSync Width=8
+		.byte	$26				; 4 Vertical Total	 =38
+		.byte	$00				; 5 Vertial Adjust	 =0
+		.byte	$10				; 6 Vertical Displayed	 =16
+		.byte	$22				; 7 VSync Position	 =&22
+		.byte	$01				; 8 Interlace+Cursor	 =&01  Cursor=0, Display=0, Interlace=Sync
+		.byte	$07				; 9 Scan Lines/Character =8
+		.byte	$67				; 10 Cursor Start Line	 =&67	Blink=On, Speed=1/32, Line=7
+		.byte	$08				; 11 Cursor End Line	 =8
+
 
 		.end

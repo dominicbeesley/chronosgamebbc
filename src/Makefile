@@ -5,15 +5,16 @@ ASFLAGS=--auto-import -I $(TOP)/includes -I $(BUILD)
 LD=ld65
 INCS=$(wildcard $(TOP)/includes/*.inc) 
 DEPS=$(INCS) 
-TARGETS=game.bin
+TARGETS=game.bin sound.bin
 OBJS_game.bin=	game
+OBJS_sound.bin=	sound
 SPECSRC=./specSrc
 
 TARGETS_B = $(addprefix $(BUILD)/,$(TARGETS))
 
 DEPLOY=$(DEPLOY_TOP)
 SSD=$(SSDS)/chronos.ssd
-SSD_FILES=game.bin
+SSD_FILES=game.bin sound.bin
 
 SSD_FILES_B=$(addprefix $(BUILD)/, $(addsuffix .inf, $(SSD_FILES)))
 SSD_EXTRAS=boot.txt $(BUILD)/map.bin
@@ -38,10 +39,19 @@ UC=$(shell echo '$1'|tr '[:lower:]' '[:upper:]')
 
 $(BUILD)/game.bin:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_game.bin))) game.cfg
 	$(LD) -vm -Ln $(basename $@).sy2 -m $(basename $@).map --dbgfile $(basename $@).dbg -o $@ -C $(filter %.cfg, $^) $(filter %.o, $^) $(LIBS)
-	echo "CHRONOS FFFF1800 FFFF1800" >$@.inf
+	echo "$$.CHRONOS FFFF1800 FFFF1800" >$@.inf
 	$(SCRIPTS)/ca65lstupdate.pl $(basename $@).dbg $(BUILD)
 	$(SCRIPTS)/getsymbols.pl <$(basename $@).sy2 >$(basename $@).1.noi
 	$(SCRIPTS)/ld65debugsymbols.pl $(basename $@).dbg $(basename $@).2.noi
+
+$(BUILD)/sound.bin:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_sound.bin))) sound.cfg
+	$(LD) -vm -Ln $(basename $@).sy2 -m $(basename $@).map --dbgfile $(basename $@).dbg -o $@ -C $(filter %.cfg, $^) $(filter %.o, $^) $(LIBS)
+	echo "$$.SOUND FFFF1800 FFFF1800" >$@.inf
+	$(SCRIPTS)/ca65lstupdate.pl $(basename $@).dbg $(BUILD)
+	$(SCRIPTS)/getsymbols.pl <$(basename $@).sy2 >$(basename $@).1.noi
+	$(SCRIPTS)/ld65debugsymbols.pl $(basename $@).dbg $(basename $@).2.noi
+	da65 --start-addr 0x1800 $@ -o $@.da.s -v -v -v
+
 
 $(BUILD)/%.o: 	%.asm $(DEPS) 
 	$(AS) $(ASFLAGS) -o $@ -g -l $(basename $@).lst $<
