@@ -77,6 +77,17 @@ tiles_top:	.word	SCREEN_TOP + PLAYFIELD_STRIDE+32
 
 @nonula:
 
+		; make colour 1 yellow
+		lda	#%00101100
+		sta	sheila_VIDPROC_pal
+		lda	#%00111100
+		sta	sheila_VIDPROC_pal
+		lda	#%01101100
+		sta	sheila_VIDPROC_pal
+		lda	#%01111100
+		sta	sheila_VIDPROC_pal
+
+
 		jsr	setscrtop
 
 		jsr	map_init

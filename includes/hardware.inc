@@ -271,6 +271,7 @@ ROMCTL_MOS_SWMOS	:=	$01
 sheila_CRTC_reg		:=	$FE00
 sheila_CRTC_dat		:=	$FE01
 sheila_VIDPROC_ctl	:=	$FE20
+sheila_VIDPROC_pal	:=	$FE21
 SHEILA_NULA_CTLAUX	:=	$FE22
 SHEILA_NULA_PALAUX	:=	$FE23
 
