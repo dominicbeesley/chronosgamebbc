@@ -8,14 +8,22 @@ PLAYFIELD_STRIDE	:= 32*8*2
 PLAYFIELD_SIZE  	:= $2000
 PLAYFIELD_TOP		:= $8000-16*PLAYFIELD_STRIDE
 
+STARS_COUNT	:= 16
+	.struct star
+		addr	.word		; address on screen
+		bits	.byte		; bitmap		
+		movect	.byte		; when this overflows skip a move
+	.endstruct
+
+
 		.zeropage
 zp_tmp:		.res 	1		; temporary
+zp_tmp2:	.res 	1		; temporary
 zp_tiledst_ptr:	.res 	2		; current tile destination in the tile column
 zp_tilesrc_ptr:	.res	2		; current tile source pointer
 zp_map_ptr:	.res	2		; pointer into map data
 zp_map_rle:	.res	1		; if <>0 then repeat this many tile=7F's
 zp_cycle:	.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new tiles every 16
-
 
 SCREEN_TOP	= $5800
 		.data
@@ -60,19 +68,26 @@ tiles_top:	.word	SCREEN_TOP + PLAYFIELD_STRIDE+32
 		lda	#0+5
 		sta	sheila_SYSVIA_orb
 
+		lda	have_nula
+		beq	@nonula
+
 		; blank some bits at left hand side
 		lda	#$38
 		sta	SHEILA_NULA_CTLAUX
 
-
+@nonula:
 
 		jsr	setscrtop
 
 		jsr	map_init
+		jsr	render_stars
 
-@main_loop:
+main_loop:
 		jsr	wait_vsync
 
+		lda	have_nula
+		sta	stars_rendered
+		beq	@nonula
 		; apply nula scroll offset
 		lda	zp_cycle
 		and	#3
@@ -81,12 +96,16 @@ tiles_top:	.word	SCREEN_TOP + PLAYFIELD_STRIDE+32
 		rol	A
 		ora	#$20
 		sta	SHEILA_NULA_CTLAUX
-
+		jsr	render_stars
+@nonula:
 
 		lda	zp_cycle
 		and	#$03
 		bne	@not_scroll
-		jsr	scroll
+		lda	have_nula
+		bne	@s
+		jsr	render_stars
+@s:		jsr	scroll
 @not_scroll:
 		lda	zp_cycle
 		and	#$0F
@@ -95,13 +114,16 @@ tiles_top:	.word	SCREEN_TOP + PLAYFIELD_STRIDE+32
 @nottiles:
 
 @not_hwscroll:
-
+		lda	stars_rendered
+		beq	@nos
+		jsr	move_stars
+		jsr	render_stars
+@nos:
 		inc	zp_cycle
 
-		jmp	@main_loop
+		jmp	main_loop
 
 		rts
-
 
 render_tiles_column:
 		; set starting address for tiles
@@ -275,6 +297,75 @@ wait_vsync:	pha
 		rts
 
 
+render_stars:	ldx	#STARS_COUNT
+		stx	zp_tmp
+		ldx	#0
+		ldy	#0
+@l:		lda	stars,X
+		sta	zp_tiledst_ptr
+		inx
+		lda	stars,X
+		sta	zp_tiledst_ptr+1
+		inx
+		lda	stars,X
+		inx
+		inx
+		eor	(zp_tiledst_ptr),Y
+		sta	(zp_tiledst_ptr),Y
+		dec	zp_tmp
+		bne	@l
+		lda	#$FF
+		sta	stars_rendered
+		rts
+
+
+move_stars:	ldx	#1
+		lda	have_nula
+		bne	@sn
+		ldx	#4			; if no nula then scroll is byte-wise, repeat 4 times
+@sn:		stx	zp_tmp2
+
+		ldx	#STARS_COUNT
+		stx	zp_tmp
+		ldx	#0		
+@l:		ldy	zp_tmp2
+@l2:		txa
+		ror	A
+		ror	A
+		ror	A
+		ror	A
+		ror	A
+		and	#$C0
+		ora	#$40		
+		adc	stars + star::movect,X
+		sta	stars + star::movect,X
+		bcs	@s			; on overflow don't move
+		ror	stars + star::bits,X
+		bcc	@s
+		lda	stars + star::bits,X
+		ora	#$80
+		sta	stars + star::bits,X
+		lda	stars + star::addr,X
+		adc	#8-1
+		sta	stars + star::addr,X
+		bcc	@s
+		inc	stars + star::addr+1,X
+		bpl	@s
+		lda	stars + star::addr+1,X
+		sec
+		sbc	#(>PLAYFIELD_SIZE)
+		sta	stars + star::addr+1,X
+
+@s:		dey
+		bne	@l2
+		inx
+		inx
+		inx
+		inx
+		dec	zp_tmp
+		bne	@l
+		rts
+
 		.data
 
 blockx16x16:	.incbin "../build/src/blocks16x16.bin"
@@ -292,6 +383,60 @@ playfield_CRTC_mode:
 		.byte	$07				; 9 Scan Lines/Character =8
 		.byte	$67				; 10 Cursor Start Line	 =&67	Blink=On, Speed=1/32, Line=7
 		.byte	$08				; 11 Cursor End Line	 =8
+
+
+have_nula:	.byte	$1
+stars_rendered:	.byte	0				; flag stars have been erased and need rerendering/moving
+
+stars:		
+.word   $78C0
+        .byte   $11
+        .byte   $00
+        .word   $6172
+        .byte   $44
+        .byte   $00
+        .word   $7CA7
+        .byte   $22
+        .byte   $00
+        .word   $7A39
+        .byte   $22
+        .byte   $00
+        .word   $64D7
+        .byte   $44
+        .byte   $00
+        .word   $7419
+        .byte   $22
+        .byte   $00
+        .word   $7419
+        .byte   $22
+        .byte   $00
+        .word   $7245
+        .byte   $11
+        .byte   $00
+        .word   $7D9B
+        .byte   $44
+        .byte   $00
+        .word   $600B
+        .byte   $22
+        .byte   $00
+        .word   $6700
+        .byte   $44
+        .byte   $00
+        .word   $7D63
+        .byte   $11
+        .byte   $00
+        .word   $630C
+        .byte   $22
+        .byte   $00
+        .word   $7B24
+        .byte   $44
+        .byte   $00
+        .word   $61AA
+        .byte   $22
+        .byte   $00
+        .word   $62AD
+        .byte   $11
+        .byte   $00
 
 
 		.end
