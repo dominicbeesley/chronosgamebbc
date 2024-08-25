@@ -8,6 +8,9 @@ PLAYFIELD_STRIDE	:= 32*8*2
 PLAYFIELD_SIZE  	:= $2000
 PLAYFIELD_TOP		:= $8000-16*PLAYFIELD_STRIDE
 
+
+BLOCK_BUFFER		:= $0400	; off-screen buffer for next column of tiles 
+
 STARS_COUNT	:= 16
 	.struct star
 		addr	.word		; address on screen
@@ -15,12 +18,27 @@ STARS_COUNT	:= 16
 		movect	.byte		; when this overflows skip a move
 	.endstruct
 
+		.macro	DEBUG_STRIPE ccc
+		.ifdef DO_DEBUG_STRIPES
+			php
+			pha
+			lda	#$00 + ((ccc >> 8) & $0F)
+			sta	SHEILA_NULA_PALAUX
+			lda	#ccc & $FF
+			sta	SHEILA_NULA_PALAUX
+			pla
+			plp
+		.endif
+		.endmacro
+
+
 
 		.zeropage
 zp_tmp:		.res 	1		; temporary
 zp_tmp2:	.res 	1		; temporary
+zp_dest_ptr:	.res 	2		; current tile destination in the tile column
 zp_tiledst_ptr:	.res 	2		; current tile destination in the tile column
-zp_tilesrc_ptr:	.res	2		; current tile source pointer
+zp_src_ptr:	.res	2		; current tile source pointer
 zp_map_ptr:	.res	2		; pointer into map data
 zp_map_rle:	.res	1		; if <>0 then repeat this many tile=7F's
 zp_cycle:	.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new tiles every 16
@@ -28,7 +46,7 @@ zp_cycle:	.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new t
 		.data
 playfield_top_crtc:	.word	PLAYFIELD_TOP / 8			; start of playfield screen (in crtc address)
 playfield_top:		.word	PLAYFIELD_TOP				; start of playfield screen (in RAM address)
-tiles_top:		.word	PLAYFIELD_TOP + PLAYFIELD_STRIDE+32
+tiles_top:		.word	PLAYFIELD_TOP + PLAYFIELD_STRIDE
 
 player_x:		.byte	32
 player_y:		.byte   80
@@ -114,11 +132,18 @@ tblKeys:		.byte	$68	; down	?
 		sty	sheila_SYSVIA_ddra		; leave it set like this...
 
 
+		lda	#$10
+		sta	SHEILA_NULA_CTLAUX
+
+
 		jsr	setscrtop
 
 		jsr	map_init
 		jsr	render_stars
 		jsr	render_player
+
+		lda	#0
+		sta	zp_cycle
 
 main_loop:
 
@@ -126,7 +151,9 @@ main_loop:
 
 		jsr	move_player0
 
+		DEBUG_STRIPE	$000
 		jsr	wait_vsync
+		DEBUG_STRIPE	$333
 
 		lda	have_nula
 		sta	stars_rendered
@@ -154,8 +181,14 @@ main_loop:
 		lda	zp_cycle
 		and	#$0F
 		bne	@nottiles
-		jsr	render_tiles_column
-@nottiles:
+		jsr	next_tiles_column		; move to next tiles column
+		jmp	@notmoretiles
+@nottiles:	and	#1
+		beq	@notmoretiles
+		; get another tile from the map and add to the tiles column
+		jsr	add_tile_to_column
+
+@notmoretiles:
 
 @not_hwscroll:
 		lda	stars_rendered
@@ -171,34 +204,28 @@ main_loop:
 
 		rts
 
-render_tiles_column:
-		; set starting address for tiles
-		ldx	tiles_top
-		stx	zp_tiledst_ptr
-		ldy	tiles_top+1
-		sty	zp_tiledst_ptr+1
-		lda	#8
-		sta	zp_tmp
-
-@rowloop:	jsr	map_get
-		jsr	get_tile_src_ptr
-		jsr	blit_tile
-		dec	zp_tmp
-		bne	@rowloop
+next_tiles_column:
 
 		; move to next column (expects 4 scrolls to have happened)
 		clc
 		lda	tiles_top
 		adc	#32
 		sta	tiles_top
+		sta	zp_tiledst_ptr
 		lda	tiles_top+1
 		adc	#0
 		bpl	@s
 		sbc	#(>(PLAYFIELD_SIZE))-1
 @s:		sta	tiles_top+1
+		sta	zp_tiledst_ptr+1
 		rts
 
-
+	
+add_tile_to_column:
+		jsr	map_get
+		jsr	get_tile_src_ptr
+		jsr	blit_tile
+		rts
 
 map_init:	lda	#0
 		sta	zp_mos_curROM
@@ -244,12 +271,12 @@ blit_tile_next_line:
 @s1:		sta	zp_tiledst_ptr+1
 
 		clc
-		lda	zp_tilesrc_ptr
+		lda	zp_src_ptr
 		adc	#32
-		sta	zp_tilesrc_ptr
+		sta	zp_src_ptr
 		bcs	@s
 		rts
-@s:		inc	zp_tilesrc_ptr+1
+@s:		inc	zp_src_ptr+1
 		rts
 
 blit_tile:	jsr	blit_tile_half
@@ -261,35 +288,35 @@ blit_tile:	jsr	blit_tile_half
 
 blit_tile_half:
 		ldy	#31
-@l1:		lda	(zp_tilesrc_ptr),Y
+@l1:		lda	(zp_src_ptr),Y
 		sta	(zp_tiledst_ptr),Y
 		dey
-		lda	(zp_tilesrc_ptr),Y
+		lda	(zp_src_ptr),Y
 		sta	(zp_tiledst_ptr),Y
 		dey
-		lda	(zp_tilesrc_ptr),Y
+		lda	(zp_src_ptr),Y
 		sta	(zp_tiledst_ptr),Y
 		dey
-		lda	(zp_tilesrc_ptr),Y
+		lda	(zp_src_ptr),Y
 		sta	(zp_tiledst_ptr),Y
 		dey
 		bpl	@l1
 		
 		rts
 get_tile_src_ptr:
-		sta	zp_tilesrc_ptr+1
+		sta	zp_src_ptr+1
 		lda	#0
 
 		clc
-		ror	zp_tilesrc_ptr+1
+		ror	zp_src_ptr+1
 		ror	A
-		ror	zp_tilesrc_ptr+1
+		ror	zp_src_ptr+1
 		ror	A
 		adc	#<blockx16x16
-		sta	zp_tilesrc_ptr
-		lda	zp_tilesrc_ptr+1
+		sta	zp_src_ptr
+		lda	zp_src_ptr+1
 		adc	#>blockx16x16
-		sta	zp_tilesrc_ptr+1
+		sta	zp_src_ptr+1
 		rts
 
 ;scroll:		lda	#>PLAYFIELD_TOP
@@ -358,30 +385,30 @@ wait_vsync:	pha
 calc_screen_xy:	
 		; = (X DIV 4)*8
 		lda	#0
-		sta	zp_tiledst_ptr+1
+		sta	zp_dest_ptr+1
 		txa
 		asl	A
-		ror	zp_tiledst_ptr+1
+		ror	zp_dest_ptr+1
 		and	#$F8
-		sta	zp_tiledst_ptr
+		sta	zp_dest_ptr
 
 		; += Y MOD 8
 
 		tya
 		and	#7
 		clc
-		adc	zp_tiledst_ptr
-		sta	zp_tiledst_ptr
+		adc	zp_dest_ptr
+		sta	zp_dest_ptr
 		bcc	@s1
-		inc	zp_tiledst_ptr+1
+		inc	zp_dest_ptr+1
 @s1:		
 
 		; add top of screen
 
 		clc	
-		lda	zp_tiledst_ptr
+		lda	zp_dest_ptr
 		adc	playfield_top
-		sta	zp_tiledst_ptr
+		sta	zp_dest_ptr
 
 		; save carry
 		php
@@ -396,12 +423,12 @@ calc_screen_xy:
 
 		plp		
 
-		adc	zp_tiledst_ptr+1
+		adc	zp_dest_ptr+1
 		adc	playfield_top+1
 		bpl	@s2
 		sec
 		sbc	#>PLAYFIELD_SIZE
-@s2:		sta	zp_tiledst_ptr+1
+@s2:		sta	zp_dest_ptr+1
 		rts
 		
 
@@ -414,9 +441,9 @@ render_player:	ldx	player_x
 		; 
 
 		lda	#<playersprites
-		sta	zp_tilesrc_ptr
+		sta	zp_src_ptr
 		lda	#>playersprites
-		sta	zp_tilesrc_ptr+1
+		sta	zp_src_ptr+1
 
 		; draw top char row of ship
 
@@ -432,10 +459,10 @@ render_player:	ldx	player_x
 		sec
 		lda	#<playersprites
 		adc	zp_tmp2
-		sta	zp_tilesrc_ptr
+		sta	zp_src_ptr
 		lda	#>playersprites
 		adc	#0
-		sta	zp_tilesrc_ptr+1
+		sta	zp_src_ptr+1
 
 
 		lda	zp_tmp2
@@ -445,44 +472,44 @@ render_player:	ldx	player_x
 		beq	@nomore
 
 		; move to next char row
-		lda	zp_tiledst_ptr
+		lda	zp_dest_ptr
 		adc	#<(PLAYFIELD_STRIDE-64)
 		and	#$F8				; move to first row in cell
-		sta	zp_tiledst_ptr
-		lda	zp_tiledst_ptr+1
+		sta	zp_dest_ptr
+		lda	zp_dest_ptr+1
 		adc	#>(PLAYFIELD_STRIDE-64)
 		bpl	@sw
 		sec
 		sbc	#>PLAYFIELD_SIZE
-@sw:		sta	zp_tiledst_ptr+1
+@sw:		sta	zp_dest_ptr+1
 
 @render_ship_row:
 		lda	#8
 		sta	zp_tmp
 @cloop:		ldy	zp_tmp2
-@rloop:		lda	(zp_tiledst_ptr),Y
-		eor	(zp_tilesrc_ptr),Y
-		sta	(zp_tiledst_ptr),Y
+@rloop:		lda	(zp_dest_ptr),Y
+		eor	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
 		dey	
 		bpl	@rloop
 
 		clc
-		lda	zp_tilesrc_ptr
+		lda	zp_src_ptr
 		adc	#8
-		sta	zp_tilesrc_ptr
+		sta	zp_src_ptr
 		bcc	@s2
-		inc	zp_tilesrc_ptr+1		; TODO place player sprite to avoid this?
+		inc	zp_src_ptr+1		; TODO place player sprite to avoid this?
 @s2:
 		clc
-		lda	zp_tiledst_ptr
+		lda	zp_dest_ptr
 		adc	#8
-		sta	zp_tiledst_ptr
-		lda	zp_tiledst_ptr+1
+		sta	zp_dest_ptr
+		lda	zp_dest_ptr+1
 		adc	#0
 		bpl	@s3
 		sec
 		sbc	#>PLAYFIELD_SIZE
-@s3:		sta	zp_tiledst_ptr+1
+@s3:		sta	zp_dest_ptr+1
 
 		dec	zp_tmp
 		bne	@cloop
@@ -499,16 +526,16 @@ render_stars:	ldx	#STARS_COUNT
 		ldx	#0
 		ldy	#0
 @l:		lda	stars,X
-		sta	zp_tiledst_ptr
+		sta	zp_dest_ptr
 		inx
 		lda	stars,X
-		sta	zp_tiledst_ptr+1
+		sta	zp_dest_ptr+1
 		inx
 		lda	stars,X
 		inx
 		inx
-		eor	(zp_tiledst_ptr),Y
-		sta	(zp_tiledst_ptr),Y
+		eor	(zp_dest_ptr),Y
+		sta	(zp_dest_ptr),Y
 		dec	zp_tmp
 		bne	@l
 		lda	#$FF
