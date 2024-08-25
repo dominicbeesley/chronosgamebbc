@@ -30,6 +30,24 @@ playfield_top_crtc:	.word	PLAYFIELD_TOP / 8			; start of playfield screen (in cr
 playfield_top:		.word	PLAYFIELD_TOP				; start of playfield screen (in RAM address)
 tiles_top:		.word	PLAYFIELD_TOP + PLAYFIELD_STRIDE+32
 
+player_x:		.byte	32
+player_y:		.byte   80
+
+next_player_x:		.byte	0
+next_player_y:		.byte	0
+
+KEYS_DOWN =		$01
+KEYS_UP =		$02
+KEYS_LEFT =		$04
+KEYS_RIGHT =		$08
+KEYS_FIRE =		$10
+player_keys:		.byte	0		
+NKEYS = 		5
+tblKeys:		.byte	$68	; down	?
+			.byte	$48	; up	*
+			.byte   $61	; left	Z
+			.byte	$42	; right	X
+			.byte	$49	; fir	RET
 
 		.macro LDXY addr
 		ldx	#<(addr)
@@ -87,6 +105,14 @@ tiles_top:		.word	PLAYFIELD_TOP + PLAYFIELD_STRIDE+32
 		lda	#%01111100
 		sta	sheila_VIDPROC_pal
 
+		; disable keyboard scan
+
+		ldy	#$0+3				; stop Auto scan
+		sty	sheila_SYSVIA_orb		; by writing to system VIA
+		ldy	#$7f				; set bits 0 to 6 of port A to input on bit 7
+							; output on bits 0 to 6
+		sty	sheila_SYSVIA_ddra		; leave it set like this...
+
 
 		jsr	setscrtop
 
@@ -95,6 +121,11 @@ tiles_top:		.word	PLAYFIELD_TOP + PLAYFIELD_STRIDE+32
 		jsr	render_player
 
 main_loop:
+
+		jsr	check_keys
+
+		jsr	move_player0
+
 		jsr	wait_vsync
 
 		lda	have_nula
@@ -130,6 +161,7 @@ main_loop:
 		lda	stars_rendered
 		beq	@nos
 		jsr	move_stars
+		jsr	move_player1
 		jsr	render_stars
 		jsr	render_player
 @nos:
@@ -355,12 +387,12 @@ calc_screen_xy:
 		php
 
 
-		; += Y DIV 8 * 256
+		; += Y DIV 8 * 512
 
 		tya
 		lsr	A
 		lsr	A
-		lsr	A
+		and	#$FE
 
 		plp		
 
@@ -375,8 +407,8 @@ calc_screen_xy:
 
 
 
-render_player:	ldx	#32
-		ldy	#80
+render_player:	ldx	player_x
+		ldy	player_y
 		jsr	calc_screen_xy
 
 		; 
@@ -386,10 +418,47 @@ render_player:	ldx	#32
 		lda	#>playersprites
 		sta	zp_tilesrc_ptr+1
 
+		; draw top char row of ship
+
+		lda	player_y
+		and	#7
+		eor	#7
+		tay
+		sty	zp_tmp2
+
+		jsr	@render_ship_row
+
+		; skip rows in source we've already plotted
+		sec
+		lda	#<playersprites
+		adc	zp_tmp2
+		sta	zp_tilesrc_ptr
+		lda	#>playersprites
+		adc	#0
+		sta	zp_tilesrc_ptr+1
+
+
+		lda	zp_tmp2
+		eor	#7
+		sta	zp_tmp2
+		beq	@nomore
+
+		; move to next char row
+		lda	zp_tiledst_ptr
+		adc	#<(PLAYFIELD_STRIDE-64)
+		and	#$F8				; move to first row in cell
+		sta	zp_tiledst_ptr
+		lda	zp_tiledst_ptr+1
+		adc	#>(PLAYFIELD_STRIDE-64)
+		bpl	@sw
+		sec
+		sbc	#>PLAYFIELD_SIZE
+@sw:		sta	zp_tiledst_ptr+1
+
+@render_ship_row:
 		lda	#8
 		sta	zp_tmp
-
-@cloop:		ldy	#7
+@cloop:		ldy	zp_tmp2
 @rloop:		lda	(zp_tiledst_ptr),Y
 		eor	(zp_tilesrc_ptr),Y
 		sta	(zp_tiledst_ptr),Y
@@ -418,7 +487,8 @@ render_player:	ldx	#32
 		bne	@cloop
 
 
-		rts
+
+@nomore:	rts
 
 		
 
@@ -490,6 +560,47 @@ move_stars:	ldx	#1
 		inx
 		dec	zp_tmp
 		bne	@l
+		rts
+
+check_keys:	ldx	#NKEYS-1
+@l:		lda	tblKeys,X
+		sta	sheila_SYSVIA_ora_nh
+		lda	sheila_SYSVIA_ora_nh
+		rol	A
+		rol	player_keys
+		dex
+		bpl	@l
+		rts
+
+move_player0:	lda	player_x
+		sta	next_player_x
+		lda	player_y
+		sta	next_player_y
+
+		lda	player_keys
+		and	#KEYS_UP
+		beq	@nup
+		dec	next_player_y
+		bpl	@nup
+		lda	#0
+		sta	next_player_y
+@nup:
+		lda	player_keys
+		and	#KEYS_DOWN
+		beq	@ndn
+		inc	next_player_y
+		lda	next_player_y
+		cmp	#120
+		bcc	@ndn
+		lda	#120
+		sta	next_player_y
+@ndn:		
+		rts
+
+move_player1:	lda	next_player_x
+		sta	player_x
+		lda	next_player_y
+		sta	player_y
 		rts
 
 		.data
