@@ -61,10 +61,14 @@ $(BUILD)/%.o: 	$(TOP)/blit-lib/%.asm $(DEPS)
 
 
 $(BUILD)/blocks16x16_spec.bin: $(SPECSRC)/chronosm.bin
-	dd if=$< of=$@ bs=32 skip=1024 count=128
+	$dd if=$< of=$@ bs=32 skip=1024 count=128
+$(BUILD)/ships_spec.bin: $(SPECSRC)/chronosm.bin
+	dd if=$< of=$@ bs=32 skip=1024 count=4
 
-$(BUILD)/blocks16x16.bin: $(BUILD)/blocks16x16_spec.bin
-	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 $< $@
+$(BUILD)/blocks16x16.bin: $(SPECSRC)/chronosm.bin
+	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --offset 0x8000 --count 128 $< $@
+$(BUILD)/player.bin: $(SPECSRC)/chronosm.bin
+	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 4 --height 8 --offset 0xCC6E --count 2 $< $@
 
 $(BUILD)/map.bin: $(SPECSRC)/chronosm.bin
 #	dd if=$< of=$@ bs=1 skip=$$(( 0x8000 * 1 )) count=$$(( 0x36e2 * 1 ))
@@ -72,14 +76,15 @@ $(BUILD)/map.bin: $(SPECSRC)/chronosm.bin
 	echo "S.MAP FF8000 FF8000">$@.inf	
 
 $(BUILD)/game.o:	$(BUILD)/blocks16x16.bin
+$(BUILD)/game.o:	$(BUILD)/player.bin
 $(BUILD)/game.o:	$(BUILD)/map.bin
 
 clean:
 	-rm $(TARGETS_B) 2>/dev/null
 	-rm $(foreach t, $(basename $(TARGETS)), $(foreach e,.map .sy2 .1.noi .2.noi .noi .dbg .mos.inf .da.s .bin.inf, $(addsuffix $(e), $(addprefix $(BUILD)/,$(t))))) 2>/dev/null
 	-rm $(foreach t, $(TARGETS), $(foreach o, $(OBJS_$(t)), $(foreach e,.lst .o .lst.rel, $(addsuffix $(e), $(addprefix $(BUILD)/,$(o)))))) 2>/dev/null
-	-rm $(BUILD)/blocks16x16_spec.bin
 	-rm $(BUILD)/blocks16x16.bin
+	-rm $(BUILD)/player.bin
 	-rm $(BUILD)/map.bin
 	-rm $(BUILD)/map.bin.inf
 	-rm $(SSD)

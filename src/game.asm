@@ -25,10 +25,10 @@ zp_map_ptr:	.res	2		; pointer into map data
 zp_map_rle:	.res	1		; if <>0 then repeat this many tile=7F's
 zp_cycle:	.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new tiles every 16
 
-SCREEN_TOP	= $5800
 		.data
-playfield_top:	.word	SCREEN_TOP / 8		; start of playfield screen (in crtc coordinates)
-tiles_top:	.word	SCREEN_TOP + PLAYFIELD_STRIDE+32
+playfield_top_crtc:	.word	PLAYFIELD_TOP / 8			; start of playfield screen (in crtc address)
+playfield_top:		.word	PLAYFIELD_TOP				; start of playfield screen (in RAM address)
+tiles_top:		.word	PLAYFIELD_TOP + PLAYFIELD_STRIDE+32
 
 
 		.macro LDXY addr
@@ -92,6 +92,7 @@ tiles_top:	.word	SCREEN_TOP + PLAYFIELD_STRIDE+32
 
 		jsr	map_init
 		jsr	render_stars
+		jsr	render_player
 
 main_loop:
 		jsr	wait_vsync
@@ -108,6 +109,7 @@ main_loop:
 		ora	#$20
 		sta	SHEILA_NULA_CTLAUX
 		jsr	render_stars
+		jsr	render_player
 @nonula:
 
 		lda	zp_cycle
@@ -129,6 +131,7 @@ main_loop:
 		beq	@nos
 		jsr	move_stars
 		jsr	render_stars
+		jsr	render_player
 @nos:
 		inc	zp_cycle
 
@@ -277,23 +280,34 @@ get_tile_src_ptr:
 ;		rts
 
 
-scroll:		inc	playfield_top
+scroll:		inc	playfield_top_crtc
 		bne	@s1
-		inc	playfield_top+1
-		lda	playfield_top+1
+		inc	playfield_top_crtc+1
+		lda	playfield_top_crtc+1
 		cmp	#$10
 		bcc	@s1
 		sbc	#((>PLAYFIELD_SIZE)/8)
-		sta	playfield_top+1
+		sta	playfield_top_crtc+1
 @s1:		
+		clc
+		lda	playfield_top
+		adc	#8
+		sta	playfield_top
+		bcc	@s2
+		inc	playfield_top+1
+		bpl	@s2
+		lda	playfield_top+1
+		sbc	#>PLAYFIELD_SIZE
+		sta	playfield_top+1
+@s2:		
 setscrtop:
 		lda	#13
 		sta	sheila_CRTC_reg
-		lda	playfield_top
+		lda	playfield_top_crtc
 		sta	sheila_CRTC_dat
 		lda	#12
 		sta	sheila_CRTC_reg
-		lda	playfield_top+1
+		lda	playfield_top_crtc+1
 		sta	sheila_CRTC_dat
 
 		rts
@@ -306,6 +320,107 @@ wait_vsync:	pha
 		beq	@lp
 		pla
 		rts
+
+	; on Entry X,Y in pixels
+	; On Exit tiledst_ptr contains pointer to address
+calc_screen_xy:	
+		; = (X DIV 4)*8
+		lda	#0
+		sta	zp_tiledst_ptr+1
+		txa
+		asl	A
+		ror	zp_tiledst_ptr+1
+		and	#$F8
+		sta	zp_tiledst_ptr
+
+		; += Y MOD 8
+
+		tya
+		and	#7
+		clc
+		adc	zp_tiledst_ptr
+		sta	zp_tiledst_ptr
+		bcc	@s1
+		inc	zp_tiledst_ptr+1
+@s1:		
+
+		; add top of screen
+
+		clc	
+		lda	zp_tiledst_ptr
+		adc	playfield_top
+		sta	zp_tiledst_ptr
+
+		; save carry
+		php
+
+
+		; += Y DIV 8 * 256
+
+		tya
+		lsr	A
+		lsr	A
+		lsr	A
+
+		plp		
+
+		adc	zp_tiledst_ptr+1
+		adc	playfield_top+1
+		bpl	@s2
+		sec
+		sbc	#>PLAYFIELD_SIZE
+@s2:		sta	zp_tiledst_ptr+1
+		rts
+		
+
+
+
+render_player:	ldx	#32
+		ldy	#80
+		jsr	calc_screen_xy
+
+		; 
+
+		lda	#<playersprites
+		sta	zp_tilesrc_ptr
+		lda	#>playersprites
+		sta	zp_tilesrc_ptr+1
+
+		lda	#8
+		sta	zp_tmp
+
+@cloop:		ldy	#7
+@rloop:		lda	(zp_tiledst_ptr),Y
+		eor	(zp_tilesrc_ptr),Y
+		sta	(zp_tiledst_ptr),Y
+		dey	
+		bpl	@rloop
+
+		clc
+		lda	zp_tilesrc_ptr
+		adc	#8
+		sta	zp_tilesrc_ptr
+		bcc	@s2
+		inc	zp_tilesrc_ptr+1		; TODO place player sprite to avoid this?
+@s2:
+		clc
+		lda	zp_tiledst_ptr
+		adc	#8
+		sta	zp_tiledst_ptr
+		lda	zp_tiledst_ptr+1
+		adc	#0
+		bpl	@s3
+		sec
+		sbc	#>PLAYFIELD_SIZE
+@s3:		sta	zp_tiledst_ptr+1
+
+		dec	zp_tmp
+		bne	@cloop
+
+
+		rts
+
+		
 
 
 render_stars:	ldx	#STARS_COUNT
@@ -380,6 +495,7 @@ move_stars:	ldx	#1
 		.data
 
 blockx16x16:	.incbin "../build/src/blocks16x16.bin"
+playersprites:	.incbin "../build/src/player.bin"
 
 playfield_CRTC_mode:
 		.byte	$7f				; 0 Horizontal Total	 =128
