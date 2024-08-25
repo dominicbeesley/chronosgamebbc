@@ -441,6 +441,7 @@ render_player:	ldx	player_x
 		lda	zp_tmp2
 		eor	#7
 		sta	zp_tmp2
+		dec	zp_tmp2
 		beq	@nomore
 
 		; move to next char row
