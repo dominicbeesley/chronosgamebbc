@@ -36,6 +36,8 @@ STARS_COUNT	:= 16
 		.zeropage
 zp_tmp:		.res 	1		; temporary
 zp_tmp2:	.res 	1		; temporary
+zp_tmp3:	.res 	1		; temporary
+zp_tmp4:	.res 	1		; temporary
 zp_dest_ptr:	.res 	2		; current tile destination in the tile column
 zp_tiledst_ptr:	.res 	2		; current tile destination in the tile column
 zp_src_ptr:	.res	2		; current tile source pointer
@@ -140,6 +142,11 @@ tblKeys:		.byte	$68	; down	?
 
 		jsr	map_init
 		jsr	render_stars
+		ldx	have_nula
+		dex
+		txa
+		eor	#$FF
+		tax
 		jsr	render_player
 
 		lda	#0
@@ -155,8 +162,9 @@ main_loop:
 		jsr	wait_vsync
 		DEBUG_STRIPE	$333
 
-		lda	have_nula
+		lda	#0
 		sta	stars_rendered
+		lda	have_nula
 		beq	@nonula
 		; apply nula scroll offset
 		lda	zp_cycle
@@ -167,7 +175,10 @@ main_loop:
 		ora	#$20
 		sta	SHEILA_NULA_CTLAUX
 		jsr	render_stars
+		ldx	zp_cycle
+		dex
 		jsr	render_player
+		dec	stars_rendered
 @nonula:
 
 		lda	zp_cycle
@@ -176,6 +187,9 @@ main_loop:
 		lda	have_nula
 		bne	@s
 		jsr	render_stars
+		ldx	#0
+		jsr	render_player
+		dec	stars_rendered
 @s:		jsr	scroll
 @not_scroll:
 		lda	zp_cycle
@@ -190,13 +204,16 @@ main_loop:
 
 @notmoretiles:
 
-@not_hwscroll:
 		lda	stars_rendered
 		beq	@nos
 		jsr	move_stars
 		jsr	move_player1
 		jsr	render_stars
-		jsr	render_player
+		ldx	#0
+		lda	have_nula
+		beq	@sss
+		ldx	zp_cycle
+@sss:		jsr	render_player
 @nos:
 		inc	zp_cycle
 
@@ -434,16 +451,32 @@ calc_screen_xy:
 
 
 
-render_player:	ldx	player_x
+render_player:	txa
+		and	#3
+		;eor	#3
+		clc
+		adc	player_x
+		sta	zp_tmp2
+		tax
+
 		ldy	player_y
 		jsr	calc_screen_xy
 
 		; 
+		clc
+		lda	zp_tmp2
+		and	#3
+		ror	A
+		ror	A
+		ror	A
 
-		lda	#<playersprites
+		adc	#<playersprites
 		sta	zp_src_ptr
+		sta	zp_tmp3
 		lda	#>playersprites
+		adc	#0
 		sta	zp_src_ptr+1
+		sta	zp_tmp4
 
 		; draw top char row of ship
 
@@ -457,10 +490,10 @@ render_player:	ldx	player_x
 
 		; skip rows in source we've already plotted
 		sec
-		lda	#<playersprites
+		lda	zp_tmp3
 		adc	zp_tmp2
 		sta	zp_src_ptr
-		lda	#>playersprites
+		lda	zp_tmp4
 		adc	#0
 		sta	zp_src_ptr+1
 
@@ -468,8 +501,8 @@ render_player:	ldx	player_x
 		lda	zp_tmp2
 		eor	#7
 		sta	zp_tmp2
-		dec	zp_tmp2
 		beq	@nomore
+		dec	zp_tmp2
 
 		; move to next char row
 		lda	zp_dest_ptr
@@ -623,6 +656,27 @@ move_player0:	lda	player_x
 		lda	#120
 		sta	next_player_y
 @ndn:		
+
+		lda	player_keys
+		and	#KEYS_LEFT
+		beq	@nlt
+		dec	next_player_x
+		bpl	@nlt
+		lda	#0
+		sta	next_player_x
+@nlt:
+		lda	player_keys
+		and	#KEYS_RIGHT
+		beq	@nrt
+		inc	next_player_x
+		lda	next_player_x
+		cmp	#120
+		bcc	@nrt
+		lda	#120
+		sta	next_player_x
+@nrt:		
+
+
 		rts
 
 move_player1:	lda	next_player_x
@@ -651,7 +705,7 @@ playfield_CRTC_mode:
 		.byte	$08				; 11 Cursor End Line	 =8
 
 
-have_nula:	.byte	$1
+have_nula:	.byte	1
 stars_rendered:	.byte	0				; flag stars have been erased and need rerendering/moving
 
 stars:		

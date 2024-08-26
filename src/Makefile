@@ -68,7 +68,7 @@ $(BUILD)/ships_spec.bin: $(SPECSRC)/chronosm.bin
 $(BUILD)/blocks16x16.bin: $(SPECSRC)/chronosm.bin
 	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --offset 0x8000 --count 128 $< $@
 $(BUILD)/player.bin: $(SPECSRC)/chronosm.bin
-	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 4 --height 8 --offset 0xCC6E --count 2 $< $@
+	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 4 --height 8 --offset 0xCC6E --count 2 --permute RII $< $@
 
 $(BUILD)/map.bin: $(SPECSRC)/chronosm.bin
 #	dd if=$< of=$@ bs=1 skip=$$(( 0x8000 * 1 )) count=$$(( 0x36e2 * 1 ))
