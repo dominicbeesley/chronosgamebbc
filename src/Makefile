@@ -6,7 +6,7 @@ LD=ld65
 INCS=$(wildcard $(TOP)/includes/*.inc) 
 DEPS=$(INCS) 
 TARGETS=game.bin sound.bin
-OBJS_game.bin=	game
+OBJS_game.bin=	game irq
 OBJS_sound.bin=	sound
 SPECSRC=./specSrc
 
@@ -69,12 +69,15 @@ $(BUILD)/blocks16x16.bin: $(SPECSRC)/chronosm.bin
 	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --offset 0x8000 --count 128 $< $@
 $(BUILD)/player.bin: $(SPECSRC)/chronosm.bin
 	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 4 --height 8 --offset 0xCC6E --count 2 --permute RII $< $@
+$(BUILD)/chronospipe.bin: $(SPECSRC)/chronosm.bin
+	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 18 --height 32 --offset 0x64A8 --count 1 $< $@
 
 $(BUILD)/map.bin: $(SPECSRC)/chronosm.bin
 #	dd if=$< of=$@ bs=1 skip=$$(( 0x8000 * 1 )) count=$$(( 0x36e2 * 1 ))
 	dd if=$< of=$@ bs=256 skip=$$(( 0x90 )) count=$$(( 0x37 ))
 	echo "S.MAP FF8000 FF8000">$@.inf	
 
+$(BUILD)/game.o:	$(BUILD)/chronospipe.bin
 $(BUILD)/game.o:	$(BUILD)/blocks16x16.bin
 $(BUILD)/game.o:	$(BUILD)/player.bin
 $(BUILD)/game.o:	$(BUILD)/map.bin
@@ -85,6 +88,7 @@ clean:
 	-rm $(foreach t, $(TARGETS), $(foreach o, $(OBJS_$(t)), $(foreach e,.lst .o .lst.rel, $(addsuffix $(e), $(addprefix $(BUILD)/,$(o)))))) 2>/dev/null
 	-rm $(BUILD)/blocks16x16.bin
 	-rm $(BUILD)/player.bin
+	-rm $(BUILD)/chronospipe.bin
 	-rm $(BUILD)/map.bin
 	-rm $(BUILD)/map.bin.inf
 	-rm $(SSD)

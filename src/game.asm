@@ -31,6 +31,11 @@ STARS_COUNT	:= 16
 		.endif
 		.endmacro
 
+		
+		.export		playfield_top_crtc
+		.export 	have_nula
+		.exportzp	zp_cycle
+		.export		chronospipe
 
 
 		.zeropage
@@ -77,16 +82,14 @@ tblKeys:		.byte	$68	; down	?
 
 		.code
 
-		sei
+		sei				; disable interrupts for now
 
-		; stop VIA interrupts
-		lda	#$7F
-		sta	sheila_SYSVIA_ier
-		sta	sheila_USRVIA_ier
-
-		; TODO: other VIA setup - for now assume its ready from MOS
 		lda 	#4   
 		sta 	sheila_SYSVIA_pcr	; vsync \\ CA1 negative-active-edge CA2 input-positive-active-edge CB1 negative-active-edge CB2 input-nagative-active-edge
+
+		lda	#%01000000		; T1 irq continuous no PB7, T2 irq, no SR, no latch
+		sta	sheila_SYSVIA_acr
+		sta	sheila_USRVIA_acr
 
 		; setup CRTC / ULA for our special small mode for playfield
 		lda	#$D8			; mode 1 : 7=%10= mo.1 cursor, 4:1=20k, 3:2 = 40 chars, 1=0 no ttx, 0=0 no flash
@@ -137,8 +140,7 @@ tblKeys:		.byte	$68	; down	?
 		lda	#$10
 		sta	SHEILA_NULA_CTLAUX
 
-
-		jsr	setscrtop
+		jsr	init_irq
 
 		jsr	map_init
 		jsr	render_stars
@@ -159,21 +161,13 @@ main_loop:
 		jsr	move_player0
 
 		DEBUG_STRIPE	$000
-		jsr	wait_vsync
+		jsr	wait_midframe
 		DEBUG_STRIPE	$333
 
 		lda	#0
 		sta	stars_rendered
 		lda	have_nula
 		beq	@nonula
-		; apply nula scroll offset
-		lda	zp_cycle
-		and	#3
-		eor	#3
-		clc
-		rol	A
-		ora	#$20
-		sta	SHEILA_NULA_CTLAUX
 		jsr	render_stars
 		ldx	zp_cycle
 		dex
@@ -376,23 +370,12 @@ scroll:		inc	playfield_top_crtc
 		sbc	#>PLAYFIELD_SIZE
 		sta	playfield_top+1
 @s2:		
-setscrtop:
-		lda	#13
-		sta	sheila_CRTC_reg
-		lda	playfield_top_crtc
-		sta	sheila_CRTC_dat
-		lda	#12
-		sta	sheila_CRTC_reg
-		lda	playfield_top_crtc+1
-		sta	sheila_CRTC_dat
 
 		rts
 
-wait_vsync:	pha
-		; clear the vsync bit in IFR
-		lda	#$02
-		sta	sheila_SYSVIA_ifr
-@lp:		bit	sheila_SYSVIA_ifr
+wait_midframe:	pha
+		lda	frame_ctr
+@lp:		cmp	frame_ctr
 		beq	@lp
 		pla
 		rts
@@ -689,6 +672,8 @@ move_player1:	lda	next_player_x
 
 blockx16x16:	.incbin "../build/src/blocks16x16.bin"
 playersprites:	.incbin "../build/src/player.bin"
+		.align	8		
+chronospipe:	.incbin "../build/src/chronospipe.bin"
 
 playfield_CRTC_mode:
 		.byte	$7f				; 0 Horizontal Total	 =128
@@ -697,9 +682,9 @@ playfield_CRTC_mode:
 		.byte	$28				; 3 HSync Width+VSync	 =&28  VSync=2, HSync Width=8
 		.byte	$26				; 4 Vertical Total	 =38
 		.byte	$00				; 5 Vertial Adjust	 =0
-		.byte	$10				; 6 Vertical Displayed	 =16
-		.byte	$22				; 7 VSync Position	 =&22
-		.byte	$01				; 8 Interlace+Cursor	 =&01  Cursor=0, Display=0, Interlace=Sync
+		.byte	$10				; 6 Vertical Displayed	 =16 - this will get changed in IRQ
+		.byte	$22				; 7 VSync Position	 =34
+		.byte	$00				; 8 Interlace+Cursor	 =&00  Cursor=0, Display=0, Interlace=None
 		.byte	$07				; 9 Scan Lines/Character =8
 		.byte	$67				; 10 Cursor Start Line	 =&67	Blink=On, Speed=1/32, Line=7
 		.byte	$08				; 11 Cursor End Line	 =8
