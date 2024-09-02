@@ -173,10 +173,10 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 		
 		jsr	wait_512
 
-		lda	#20
-@www:		sbc	#1
-		bne	@www
-
+;		lda	#19
+;@www:		sbc	#1
+;		bne	@www
+;
 		lda	#1
 		sta	sheila_CRTC_reg
 		lda	#36

@@ -11,17 +11,30 @@ PLAYFIELD_TOP		:= $8000-16*PLAYFIELD_STRIDE
 
 BLOCK_BUFFER		:= $0400	; off-screen buffer for next column of tiles 
 
+TILE_DOWN_TIT		:= $18
+TILE_UP_TIT		:= $19
+TILE_UP_TIT2		:= $9
+TILE_CUBE		:= $10
+
+
 STARS_COUNT	:= 16
 	.struct star
 		addr	.word		; address on screen
 		bits	.byte		; bitmap		
 		movect	.byte		; when this overflows skip a move
 	.endstruct
+BULLET_COUNT	:= 16
+	.struct bullet
+		px	.byte
+		py	.byte
+		status	.byte
+	.endstruct
 
 		.macro	DEBUG_STRIPE ccc
 		.ifdef DO_DEBUG_STRIPES
 			php
 			pha
+			sei
 			lda	#$00 + ((ccc >> 8) & $0F)
 			sta	SHEILA_NULA_PALAUX
 			lda	#ccc & $FF
@@ -72,7 +85,7 @@ tblKeys:		.byte	$68	; down	?
 			.byte	$48	; up	*
 			.byte   $61	; left	Z
 			.byte	$42	; right	X
-			.byte	$49	; fir	RET
+			.byte	$62	; fire	SPACE
 
 		.macro LDXY addr
 		ldx	#<(addr)
@@ -143,7 +156,7 @@ tblKeys:		.byte	$68	; down	?
 		jsr	init_irq
 
 		jsr	map_init
-		jsr	render_stars
+		jsr	render_stars_and_bullets
 		ldx	have_nula
 		dex
 		txa
@@ -153,6 +166,7 @@ tblKeys:		.byte	$68	; down	?
 
 		lda	#0
 		sta	zp_cycle
+		sta	fire_pend
 
 main_loop:
 
@@ -168,11 +182,10 @@ main_loop:
 		sta	stars_rendered
 		lda	have_nula
 		beq	@nonula
-		jsr	render_stars
+		jsr	render_stars_and_bullets
 		ldx	zp_cycle
 		dex
 		jsr	render_player
-		dec	stars_rendered
 @nonula:
 
 		lda	zp_cycle
@@ -180,16 +193,16 @@ main_loop:
 		bne	@not_scroll
 		lda	have_nula
 		bne	@s
-		jsr	render_stars
+		jsr	render_stars_and_bullets
 		ldx	#0
 		jsr	render_player
-		dec	stars_rendered
 @s:		jsr	scroll
 @not_scroll:
 		lda	zp_cycle
 		and	#$0F
 		bne	@nottiles
 		jsr	next_tiles_column		; move to next tiles column
+		jsr	check_and_fire
 		jmp	@notmoretiles
 @nottiles:	and	#1
 		beq	@notmoretiles
@@ -200,9 +213,9 @@ main_loop:
 
 		lda	stars_rendered
 		beq	@nos
-		jsr	move_stars
+		jsr	move_stars_and_bullets
 		jsr	move_player1
-		jsr	render_stars
+		jsr	render_stars_and_bullets
 		ldx	#0
 		lda	have_nula
 		beq	@sss
@@ -229,11 +242,52 @@ next_tiles_column:
 		sbc	#(>(PLAYFIELD_SIZE))-1
 @s:		sta	tiles_top+1
 		sta	zp_tiledst_ptr+1
+
+		; scroll the visibile tilemap
+		ldx	#0
+@lp:		lda	visible_tiles+8,X
+		sta	visible_tiles,X
+		inx
+		cpx	#15*8
+		bne	@lp
+		rts
+
+
+		; get tile at pixel position X adjusted for cycle
+get_visible_tileAY:
+		stx	zp_tmp3
+		sta	zp_tmp
+		lda	zp_cycle
+		and	#$0F
+		clc
+		adc	zp_tmp
+		and	#$F0
+		lsr	A
+		sta	zp_tmp
+		tya
+		and	#$70
+		lsr	A
+		lsr	A
+		lsr	A
+		lsr	A
+		clc
+		adc	zp_tmp
+		tax
+		lda	visible_tiles,X
+		ldx	zp_tmp3
 		rts
 
 	
 add_tile_to_column:
 		jsr	map_get
+		; place in visible tile map at right most column
+		pha
+		lda	zp_cycle
+		lsr	A
+		and	#7
+		tax
+		pla
+		sta	visible_tiles+15*8,X
 		jsr	get_tile_src_ptr
 		jsr	blit_tile
 		rts
@@ -350,7 +404,9 @@ get_tile_src_ptr:
 ;		rts
 
 
-scroll:		inc	playfield_top_crtc
+scroll:		php
+		sei
+		inc	playfield_top_crtc
 		bne	@s1
 		inc	playfield_top_crtc+1
 		lda	playfield_top_crtc+1
@@ -370,7 +426,7 @@ scroll:		inc	playfield_top_crtc
 		sbc	#>PLAYFIELD_SIZE
 		sta	playfield_top+1
 @s2:		
-
+		plp
 		rts
 
 wait_midframe:	pha
@@ -388,7 +444,7 @@ calc_screen_xy:
 		sta	zp_dest_ptr+1
 		txa
 		asl	A
-		ror	zp_dest_ptr+1
+		rol	zp_dest_ptr+1
 		and	#$F8
 		sta	zp_dest_ptr
 
@@ -537,7 +593,9 @@ render_player:	txa
 		
 
 
-render_stars:	ldx	#STARS_COUNT
+render_stars_and_bullets:	
+		; stars first
+		ldx	#STARS_COUNT
 		stx	zp_tmp
 		ldx	#0
 		ldy	#0
@@ -554,12 +612,55 @@ render_stars:	ldx	#STARS_COUNT
 		sta	(zp_dest_ptr),Y
 		dec	zp_tmp
 		bne	@l
+
+		; bullets
+
+		ldx	#.sizeof(bullet)*(BULLET_COUNT-1)	; point at last
+@blp:		lda	bullets + bullet::status,X
+		bmi	@bnx
+
+		txa
+		pha
+		lda	bullets + bullet::py,X
+		tay
+		lda	bullets + bullet::px,X
+		tax
+		jsr	calc_screen_xy
+		ldy	#0
+		lda	(zp_dest_ptr),Y
+		eor	#$FF
+		sta	(zp_dest_ptr),Y
+		ldy	#8
+		lda	(zp_dest_ptr),Y
+		eor	#$FF
+		sta	(zp_dest_ptr),Y
+		ldy	#16
+		lda	(zp_dest_ptr),Y
+		eor	#$FF
+		sta	(zp_dest_ptr),Y
+		ldy	#24
+		lda	(zp_dest_ptr),Y
+		eor	#$FF
+		sta	(zp_dest_ptr),Y
+
+		pla
+		tax
+
+@bnx:		dex
+		dex
+		dex
+		bpl	@blp
+
 		lda	#$FF
 		sta	stars_rendered
+
+
+
 		rts
 
 
-move_stars:	ldx	#1
+move_stars_and_bullets:	
+		ldx	#1
 		lda	have_nula
 		bne	@sn
 		ldx	#4			; if no nula then scroll is byte-wise, repeat 4 times
@@ -604,7 +705,50 @@ move_stars:	ldx	#1
 		inx
 		dec	zp_tmp
 		bne	@l
+
+		clc
+		lda	zp_tmp2
+		rol	zp_tmp2
+		adc	zp_tmp2
+		sta	zp_tmp2
+
+		ldx	#.sizeof(bullet)*(BULLET_COUNT-1)
+@blp:		lda	bullets + bullet::status,X
+		bmi	@sb
+	
+		lda	bullets + bullet::py,X
+		tay
+		lda	bullets + bullet::px,X
+		jsr	get_visible_tileAY
+		cmp	#$7F
+		beq	@moveit
+		; we've hit something...
+		pha
+		lda	#$FF
+		sta	bullets + bullet::status,X
+
+		; check what we've hit and if it is destructable
+		pla
+
+
+		bne	@sb
+
+
+
+@moveit:	clc
+		lda	bullets + bullet::px,X
+		adc	zp_tmp2
+		bcs	@end
+		sta	bullets + bullet::px,X
+@sb:		dex
+		dex
+		dex
+		bpl	@blp
 		rts
+@end:		lda	#$FF
+		sta	bullets + bullet::status,X
+		bne	@sb
+
 
 check_keys:	ldx	#NKEYS-1
 @l:		lda	tblKeys,X
@@ -659,8 +803,48 @@ move_player0:	lda	player_x
 		sta	next_player_x
 @nrt:		
 
+		
+
+		; only fire once every block move (16 cycles)
+		lda	fire_pend
+		bne	@nof
+		lda	player_keys
+		and	#KEYS_FIRE
+		beq	@nof
+		dec	fire_pend
+@nof:
 
 		rts
+
+check_and_fire:
+		lda	fire_pend
+		beq	@rts
+		; look for a firing slot and occupy it
+		ldx	#.sizeof(bullet)*(BULLET_COUNT-1)	; point at last slot
+@lp:		lda	bullets + bullet::status,X
+		bpl	@occ					; skip if occupied
+
+		; we've found a slot, fill it with our data
+		lda	player_x
+		clc
+		adc	#32
+		sta	bullets + bullet::px,X
+		lda	player_y
+		clc
+		adc	#4
+		sta	bullets + bullet::py,X
+		lda	#0
+		sta	bullets + bullet::status,X
+		beq	@nof
+
+@occ:		dex
+		dex
+		dex
+		bpl	@lp
+@nof:		lda	#0
+		sta	fire_pend
+
+@rts:		rts
 
 move_player1:	lda	next_player_x
 		sta	player_x
@@ -694,7 +878,7 @@ have_nula:	.byte	1
 stars_rendered:	.byte	0				; flag stars have been erased and need rerendering/moving
 
 stars:		
-.word   $78C0
+	.word   $78C0
         .byte   $11
         .byte   $00
         .word   $6172
@@ -742,6 +926,17 @@ stars:
         .word   $62AD
         .byte   $11
         .byte   $00
+bullets:
+	.repeat BULLET_COUNT, I
+	.byte	0
+	.byte	I * 8
+	.byte	$FF
+	.endrepeat
 
+fire_pend:	.res	1		; player fire is pending
+
+	.align 8
+visible_tiles:
+		.res	8*16		; the tiles currently on screen row minor 
 
 		.end
