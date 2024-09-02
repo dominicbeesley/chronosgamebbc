@@ -56,7 +56,7 @@ zp_tmp:		.res 	1		; temporary
 zp_tmp2:	.res 	1		; temporary
 zp_tmp3:	.res 	1		; temporary
 zp_tmp4:	.res 	1		; temporary
-zp_dest_ptr:	.res 	2		; current tile destination in the tile column
+zp_dest_ptr:	.res 	2		; current blit destination
 zp_tiledst_ptr:	.res 	2		; current tile destination in the tile column
 zp_src_ptr:	.res	2		; current tile source pointer
 zp_map_ptr:	.res	2		; pointer into map data
@@ -66,7 +66,8 @@ zp_cycle:	.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new t
 		.data
 playfield_top_crtc:	.word	PLAYFIELD_TOP / 8			; start of playfield screen (in crtc address)
 playfield_top:		.word	PLAYFIELD_TOP				; start of playfield screen (in RAM address)
-tiles_top:		.word	PLAYFIELD_TOP + PLAYFIELD_STRIDE
+new_tiles_top:		.word	PLAYFIELD_TOP + PLAYFIELD_STRIDE	; where new tiles are to be plotted
+up_tiles_top:		.word	PLAYFIELD_TOP + 32			; where tiles will be updated relative to
 
 player_x:		.byte	32
 player_y:		.byte   80
@@ -232,16 +233,26 @@ next_tiles_column:
 
 		; move to next column (expects 4 scrolls to have happened)
 		clc
-		lda	tiles_top
+		lda	new_tiles_top
 		adc	#32
-		sta	tiles_top
+		sta	new_tiles_top
 		sta	zp_tiledst_ptr
-		lda	tiles_top+1
+		lda	new_tiles_top+1
 		adc	#0
 		bpl	@s
 		sbc	#(>(PLAYFIELD_SIZE))-1
-@s:		sta	tiles_top+1
+@s:		sta	new_tiles_top+1
 		sta	zp_tiledst_ptr+1
+
+		clc
+		lda	up_tiles_top
+		adc	#32
+		sta	up_tiles_top
+		lda	up_tiles_top+1
+		adc	#0
+		bpl	@ss
+		sbc	#(>(PLAYFIELD_SIZE))-1
+@ss:		sta	up_tiles_top+1
 
 		; scroll the visibile tilemap
 		ldx	#0
@@ -254,8 +265,8 @@ next_tiles_column:
 
 
 		; get tile at pixel position X adjusted for cycle
+		; returns A=tile #, X=offset in map
 get_visible_tileAY:
-		stx	zp_tmp3
 		sta	zp_tmp
 		lda	zp_cycle
 		and	#$0F
@@ -270,12 +281,26 @@ get_visible_tileAY:
 		lsr	A
 		lsr	A
 		lsr	A
-		clc
-		adc	zp_tmp
+		ora	zp_tmp
 		tax
 		lda	visible_tiles,X
-		ldx	zp_tmp3
 		rts
+
+		; on entry X contains the visible tile offset
+		; on exit zp_dest_ptr is screen address of tile adjusted for current scroll cycle		
+visibleX_to_screen:
+		; pY is 16 * (X&7)
+		txa
+		pha
+		and	#7
+		tay
+		pla
+		and	#$78
+		lsr	A
+		lsr	A
+		lsr	A
+		tax
+		jmp	calc_tile_xy
 
 	
 add_tile_to_column:
@@ -289,7 +314,15 @@ add_tile_to_column:
 		pla
 		sta	visible_tiles+15*8,X
 		jsr	get_tile_src_ptr
+		lda	zp_tiledst_ptr
+		sta	zp_dest_ptr
+		lda	zp_tiledst_ptr+1
+		sta	zp_dest_ptr+1
 		jsr	blit_tile
+		lda	zp_dest_ptr
+		sta	zp_tiledst_ptr
+		lda	zp_dest_ptr+1
+		sta	zp_tiledst_ptr+1
 		rts
 
 map_init:	lda	#0
@@ -325,23 +358,16 @@ map_get:	ldy	zp_map_rle		; are we doing a run of blanks
 
 blit_tile_next_line:
 		clc
-		lda	zp_tiledst_ptr
-		adc	#<(PLAYFIELD_STRIDE)
-		sta	zp_tiledst_ptr
+		lda	zp_dest_ptr
+		adc	#<(PLAYFIELD_STRIDE-32)
+		sta	zp_dest_ptr
 
-		lda	zp_tiledst_ptr+1
-		adc	#>(PLAYFIELD_STRIDE)
+		lda	zp_dest_ptr+1
+		adc	#>(PLAYFIELD_STRIDE-32)
 		bpl	@s1
 		sbc	#(>(PLAYFIELD_SIZE))-1
-@s1:		sta	zp_tiledst_ptr+1
+@s1:		sta	zp_dest_ptr+1
 
-		clc
-		lda	zp_src_ptr
-		adc	#32
-		sta	zp_src_ptr
-		bcs	@s
-		rts
-@s:		inc	zp_src_ptr+1
 		rts
 
 blit_tile:	jsr	blit_tile_half
@@ -352,21 +378,63 @@ blit_tile:	jsr	blit_tile_half
 		rts
 
 blit_tile_half:
-		ldy	#31
-@l1:		lda	(zp_src_ptr),Y
-		sta	(zp_tiledst_ptr),Y
-		dey
+		ldx	#4
+@l2:
+		ldy	#7
+
 		lda	(zp_src_ptr),Y
-		sta	(zp_tiledst_ptr),Y
+		sta	(zp_dest_ptr),Y
 		dey
+
 		lda	(zp_src_ptr),Y
-		sta	(zp_tiledst_ptr),Y
+		sta	(zp_dest_ptr),Y
 		dey
+
 		lda	(zp_src_ptr),Y
-		sta	(zp_tiledst_ptr),Y
+		sta	(zp_dest_ptr),Y
 		dey
-		bpl	@l1
-		
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+
+
+		clc
+		lda	zp_src_ptr
+		adc	#8
+		sta	zp_src_ptr
+		bcc	@s1
+		inc	zp_src_ptr+1
+@s1:		
+
+		clc
+		lda	zp_dest_ptr
+		adc	#8
+		sta	zp_dest_ptr
+		bcc	@s2
+		inc	zp_dest_ptr+1
+		bpl	@s2
+		sec
+		lda	zp_dest_ptr+1
+		sbc	#>PLAYFIELD_SIZE
+		sta	zp_dest_ptr+1
+@s2:		dex
+		bne	@l2
 		rts
 get_tile_src_ptr:
 		sta	zp_src_ptr+1
@@ -436,8 +504,53 @@ wait_midframe:	pha
 		pla
 		rts
 
-	; on Entry X,Y in pixels
-	; On Exit tiledst_ptr contains pointer to address
+calc_tile_xy:
+	; on Entry X,Y in tiles from current tile pointer
+	; On Exit zp_dest_ptr contains pointer to address
+		; = X*32
+
+		lda	#0
+		sta	zp_dest_ptr
+
+		txa
+		lsr	A
+		ror	zp_dest_ptr
+		lsr	A
+		ror	zp_dest_ptr
+		lsr	A
+		ror	zp_dest_ptr
+		sta	zp_dest_ptr+1
+
+
+		; add tile map start
+		clc
+		lda	up_tiles_top
+		adc	zp_dest_ptr
+		sta	zp_dest_ptr
+		lda	up_tiles_top+1
+		adc	zp_dest_ptr+1
+		sta	zp_dest_ptr+1
+				
+
+		; += Y * 1024
+
+		tya
+		asl	A
+		asl	A
+		clc
+		adc	zp_dest_ptr+1
+		bmi	@s
+		sta	zp_dest_ptr+1
+		rts
+
+@s:		sec
+		sbc	#>PLAYFIELD_SIZE
+		sta	zp_dest_ptr+1
+		rts
+
+
+	; on Entry X,Y in pixels offset to playfield (scrolled) screen
+	; On Exit zp_dest_ptr contains pointer to address
 calc_screen_xy:	
 		; = (X DIV 4)*8
 		lda	#0
@@ -719,23 +832,49 @@ move_stars_and_bullets:
 		lda	bullets + bullet::py,X
 		tay
 		lda	bullets + bullet::px,X
+		stx	zp_tmp3
 		jsr	get_visible_tileAY
 		cmp	#$7F
 		beq	@moveit
 		; we've hit something...
-		pha
-		lda	#$FF
-		sta	bullets + bullet::status,X
-
 		; check what we've hit and if it is destructable
-		pla
+		
+		cmp	#TILE_UP_TIT
+		beq	@score5
+		cmp	#TILE_DOWN_TIT
+		beq	@score5
+		cmp	#TILE_UP_TIT2
+		beq	@score10
+		cmp	#TILE_CUBE
+		beq	@skspecial
+		cmp	#$36
+		bcc	@nodes			; not destructable
+		cmp	#$39
+		bcs	@nodes
+		bcc	@skspecial
+@score5:	lda	#5
+		bne	@s5
+@score10:	lda	#10
+@s5:		jsr	add_A_score
+@skspecial:	; blank out block in visible tile map 
+		; X should still point at tile map
+		lda	#$7F		
+		sta	visible_tiles,X
+
+		; blank out on screen
+		jsr	visibleX_to_screen
+		lda	#$7F
+		jsr	get_tile_src_ptr
+		jsr	blit_tile
+
+@nodes:		ldx	zp_tmp3		
+		jmp	@end
 
 
-		bne	@sb
 
-
-
-@moveit:	clc
+@moveit:	
+		ldx	zp_tmp3	
+		clc
 		lda	bullets + bullet::px,X
 		adc	zp_tmp2
 		bcs	@end
@@ -851,6 +990,10 @@ move_player1:	lda	next_player_x
 		lda	next_player_y
 		sta	player_y
 		rts
+
+;;;;; scores
+add_A_score:	rts
+
 
 		.data
 
