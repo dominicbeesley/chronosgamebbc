@@ -202,7 +202,9 @@ main_loop:
 		sta	stars_rendered
 		lda	have_nula
 		beq	@nonula
+		DEBUG_STRIPE	$033
 		jsr	render_stars_and_bullets
+		DEBUG_STRIPE	$333
 		ldx	zp_cycle
 		dex
 		jsr	render_player
@@ -213,7 +215,9 @@ main_loop:
 		bne	@not_scroll
 		lda	have_nula
 		bne	@s
+		DEBUG_STRIPE	$033
 		jsr	render_stars_and_bullets
+		DEBUG_STRIPE	$333
 		ldx	#0
 		jsr	render_player
 @s:		jsr	scroll
@@ -233,9 +237,12 @@ main_loop:
 
 		lda	stars_rendered
 		beq	@nos
+		DEBUG_STRIPE	$303
 		jsr	move_stars_and_bullets
 		jsr	move_player1
+		DEBUG_STRIPE	$033
 		jsr	render_stars_and_bullets
+		DEBUG_STRIPE	$333
 		ldx	#0
 		lda	have_nula
 		beq	@sss
@@ -818,30 +825,41 @@ render_stars_and_bullets:
 		inx				; move down one
 
 		jsr	visibleX_to_screen
+		clc
+		lda	zp_dest_ptr
+		adc	#8
+		sta	zp_dest_ptr
+		bcc	@s2
+		inc	zp_dest_ptr+1
+		bpl	@s2
+		sec
+		lda	zp_dest_ptr+1
+		sbc	#>PLAYFIELD_SIZE
+		sta	zp_dest_ptr+1
+@s2:
 
-
-@ll:		ldy	#0
+@ll:		ldy	#1
 
 		lda	(zp_dest_ptr),Y
-		eor	#$FF
+		eor	#$33
 		sta	(zp_dest_ptr),Y
 		iny
-
-		lda	(zp_dest_ptr),Y
-		eor	#$FF
-		sta	(zp_dest_ptr),Y
-
-		iny
-		iny
 		iny
 
 		lda	(zp_dest_ptr),Y
-		eor	#$FF
+		eor	#$33
 		sta	(zp_dest_ptr),Y
 		iny
+		iny
 
 		lda	(zp_dest_ptr),Y
-		eor	#$FF
+		eor	#$33
+		sta	(zp_dest_ptr),Y
+		iny
+		iny
+
+		lda	(zp_dest_ptr),Y
+		eor	#$33
 		sta	(zp_dest_ptr),Y
 
 		jsr	dest_ptr_next_row
@@ -980,6 +998,7 @@ move_stars_and_bullets:
 @findlasertits:
 		lda	zp_cycle
 		and	#$F
+		cmp	#0
 		bne	@rts
 
 		; cycle through the visible map and look for laser tits with matching pairs
@@ -993,6 +1012,7 @@ move_stars_and_bullets:
 		beq	@uptit
 @nxt:		inx
 		cpx	#$38		; if we get to position $38 then skip forward to $50 as these lasers don't fire
+		bcc	@ltlp
 		bne	@cont
 		lda	zp_tmp
 		beq	@s50
