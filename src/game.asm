@@ -185,6 +185,8 @@ tblKeys:		.byte	$68	; down	?
 		adc	zp_frames_per_movex3
 		sta	zp_frames_per_movex3
 
+		lda	#$FF
+		sta	firing_tits
 
 main_loop:
 
@@ -373,7 +375,7 @@ map_get:	ldy	zp_map_rle		; are we doing a run of blanks
 		rts
 
 
-blit_tile_next_line:
+blit_tile_next_row:
 		clc
 		lda	zp_dest_ptr
 		adc	#<(PLAYFIELD_STRIDE-32)
@@ -388,10 +390,25 @@ blit_tile_next_line:
 		rts
 
 blit_tile:	jsr	blit_tile_half
-		jsr	blit_tile_next_line
+		jsr	blit_tile_next_row
 
 		jsr	blit_tile_half
-		jmp	blit_tile_next_line
+		jmp	blit_tile_next_row
+		rts
+
+
+dest_ptr_next_row:
+		clc
+		lda	zp_dest_ptr
+		adc	#<(PLAYFIELD_STRIDE)
+		sta	zp_dest_ptr
+
+		lda	zp_dest_ptr+1
+		adc	#>(PLAYFIELD_STRIDE)
+		bpl	@s1
+		sbc	#(>(PLAYFIELD_SIZE))-1
+@s1:		sta	zp_dest_ptr+1
+
 		rts
 
 blit_tile_half:
@@ -781,6 +798,70 @@ render_stars_and_bullets:
 		dex
 		bpl	@blp
 
+		;render the laser beams between up/down pointing tits
+		
+		ldx	#0			
+@titlp:		lda	firing_tits,X
+		stx	zp_tmp2
+		tay
+		cmp	#$FF
+		beq	@skiptits
+		
+		sec
+		sbc	firing_tits+1,X
+		eor	#$FF	
+		asl	A
+		sta	zp_tmp3
+		
+		tya
+		tax
+		inx				; move down one
+
+		jsr	visibleX_to_screen
+
+
+@ll:		ldy	#0
+
+		lda	(zp_dest_ptr),Y
+		eor	#$FF
+		sta	(zp_dest_ptr),Y
+		iny
+
+		lda	(zp_dest_ptr),Y
+		eor	#$FF
+		sta	(zp_dest_ptr),Y
+
+		iny
+		iny
+		iny
+
+		lda	(zp_dest_ptr),Y
+		eor	#$FF
+		sta	(zp_dest_ptr),Y
+		iny
+
+		lda	(zp_dest_ptr),Y
+		eor	#$FF
+		sta	(zp_dest_ptr),Y
+
+		jsr	dest_ptr_next_row
+
+		dec	zp_tmp3
+		bne	@ll
+		
+
+
+		
+		ldx	zp_tmp2
+		inx
+		inx
+		bne	@titlp
+
+
+
+@skiptits:
+
+
 		lda	#$FF
 		sta	stars_rendered
 
@@ -890,11 +971,63 @@ move_stars_and_bullets:
 		dex
 		dex
 		bpl	@blp
-		rts
+		bmi	@findlasertits
 @end:		lda	#$FF
 		sta	bullets + bullet::status,X
 		bne	@sb
 
+@rts:		rts
+@findlasertits:
+		lda	zp_cycle
+		and	#$F
+		bne	@rts
+
+		; cycle through the visible map and look for laser tits with matching pairs
+		ldx	#0		; index into map
+		stx	zp_tmp		; remember which type of tit we're on
+		ldy	#0		; index into tit list
+@ltlp:		lda	visible_tiles,X
+		cmp	#TILE_DOWN_TIT
+		beq	@downtit
+		cmp	#TILE_UP_TIT
+		beq	@uptit
+@nxt:		inx
+		cpx	#$38		; if we get to position $38 then skip forward to $50 as these lasers don't fire
+		bne	@cont
+		lda	zp_tmp
+		beq	@s50
+		dey			; we were tracking a pair, cancel
+		dec	zp_tmp
+@s50:		ldx	#$50		; skip forward to position 50
+@cont:		cpx	#$68
+		bne	@ltlp
+		lda	zp_tmp
+		beq	@nr
+		dey			; cancel open tit
+@nr:		lda	#$FF
+		sta	firing_tits,Y
+		rts
+
+@downtit:	lda	zp_tmp
+		beq	@sd
+		dey			; we got another down, cancel previous
+		dec	zp_tmp
+@sd:		txa
+		sta	firing_tits,Y
+		iny
+		inc	zp_tmp
+		jmp	@nxt
+@uptit:		lda	zp_tmp
+		beq	@nxt		; nothing was active ignore
+		dec	zp_tmp		; cancel marker
+		txa
+		sta	firing_tits,Y
+		iny
+		jmp	@nxt
+
+
+
+;;;;;;;;;;;;;;; check keys ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 check_keys:	ldx	#NKEYS-1
 @l:		lda	tblKeys,X
@@ -1095,5 +1228,8 @@ fire_pend:	.res	1		; player fire is pending
 	.align 8
 visible_tiles:
 		.res	8*16		; the tiles currently on screen row minor 
+firing_tits:
+
+		.res	8*2		; laser beams in use each two bytes for a start/stop offset in tilemap
 
 		.end
