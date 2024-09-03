@@ -63,6 +63,10 @@ zp_map_ptr:	.res	2		; pointer into map data
 zp_map_rle:	.res	1		; if <>0 then repeat this many tile=7F's
 zp_cycle:	.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new tiles every 16
 
+zp_frames_per_move:
+		.res	1		; used to multiply speed of stars/player
+zp_frames_per_movex3:
+		.res	1		; used for number of pixels to move bullets
 		.data
 playfield_top_crtc:	.word	PLAYFIELD_TOP / 8			; start of playfield screen (in crtc address)
 playfield_top:		.word	PLAYFIELD_TOP				; start of playfield screen (in RAM address)
@@ -168,6 +172,19 @@ tblKeys:		.byte	$68	; down	?
 		lda	#0
 		sta	zp_cycle
 		sta	fire_pend
+
+		ldx	#1
+		lda	have_nula
+		bne	@sn
+		ldx	#4			; if no nula then scroll is byte-wise, repeat 4 times
+@sn:		stx	zp_frames_per_move
+		clc
+		stx	zp_frames_per_movex3
+		txa
+		rol	A
+		adc	zp_frames_per_movex3
+		sta	zp_frames_per_movex3
+
 
 main_loop:
 
@@ -773,16 +790,11 @@ render_stars_and_bullets:
 
 
 move_stars_and_bullets:	
-		ldx	#1
-		lda	have_nula
-		bne	@sn
-		ldx	#4			; if no nula then scroll is byte-wise, repeat 4 times
-@sn:		stx	zp_tmp2
 
 		ldx	#STARS_COUNT
 		stx	zp_tmp
 		ldx	#0		
-@l:		ldy	zp_tmp2
+@l:		ldy	zp_frames_per_move
 @l2:		txa
 		ror	A
 		ror	A
@@ -819,11 +831,6 @@ move_stars_and_bullets:
 		dec	zp_tmp
 		bne	@l
 
-		clc
-		lda	zp_tmp2
-		rol	zp_tmp2
-		adc	zp_tmp2
-		sta	zp_tmp2
 
 		ldx	#.sizeof(bullet)*(BULLET_COUNT-1)
 @blp:		lda	bullets + bullet::status,X
@@ -876,7 +883,7 @@ move_stars_and_bullets:
 		ldx	zp_tmp3	
 		clc
 		lda	bullets + bullet::px,X
-		adc	zp_tmp2
+		adc	zp_frames_per_movex3
 		bcs	@end
 		sta	bullets + bullet::px,X
 @sb:		dex
@@ -907,39 +914,46 @@ move_player0:	lda	player_x
 		lda	player_keys
 		and	#KEYS_UP
 		beq	@nup
-		dec	next_player_y
-		bpl	@nup
+		lda	next_player_y
+		sec
+		sbc	zp_frames_per_move
+		bpl	@novup
 		lda	#0
-		sta	next_player_y
+@novup:		sta	next_player_y
 @nup:
+
+
 		lda	player_keys
 		and	#KEYS_DOWN
 		beq	@ndn
-		inc	next_player_y
 		lda	next_player_y
+		clc
+		adc	zp_frames_per_move	
 		cmp	#120
-		bcc	@ndn
+		bcc	@novdn
 		lda	#120
-		sta	next_player_y
+@novdn:		sta	next_player_y
 @ndn:		
 
 		lda	player_keys
 		and	#KEYS_LEFT
 		beq	@nlt
-		dec	next_player_x
-		bpl	@nlt
+		lda	next_player_x
+		sec
+		sbc	zp_frames_per_move
+		bpl	@novlt
 		lda	#0
-		sta	next_player_x
+@novlt:		sta	next_player_x
 @nlt:
 		lda	player_keys
 		and	#KEYS_RIGHT
 		beq	@nrt
-		inc	next_player_x
 		lda	next_player_x
+		adc	zp_frames_per_move
 		cmp	#120
-		bcc	@nrt
+		bcc	@novrt
 		lda	#120
-		sta	next_player_x
+@novrt:		sta	next_player_x
 @nrt:		
 
 		
