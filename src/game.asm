@@ -225,8 +225,11 @@ main_loop:
 		lda	zp_cycle
 		and	#$0F
 		bne	@nottiles
+		DEBUG_STRIPE	$FFF
 		jsr	next_tiles_column		; move to next tiles column
+		DEBUG_STRIPE	$0F3
 		jsr	check_and_fire
+		DEBUG_STRIPE	$033
 		jmp	@notmoretiles
 @nottiles:	and	#1
 		beq	@notmoretiles
@@ -282,11 +285,22 @@ next_tiles_column:
 
 		; scroll the visibile tilemap
 		ldx	#0
-@lp:		lda	visible_tiles+8,X
+@lp:		
+		lda	visible_tiles+8,X
 		sta	visible_tiles,X
 		inx
+		lda	visible_tiles+8,X
+		sta	visible_tiles,X
+		inx		
+		lda	visible_tiles+8,X
+		sta	visible_tiles,X
+		inx		
+		lda	visible_tiles+8,X
+		sta	visible_tiles,X
+		inx		
+
 		cpx	#15*8
-		bne	@lp
+		bcc	@lp
 		rts
 
 

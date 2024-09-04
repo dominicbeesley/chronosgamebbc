@@ -119,7 +119,6 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 
 		; SYS via T1 has fired - we are in second half of screen so fiddle registers to:
 
-		inc 	frame_ctr
 		; Set second half of screen to be big...
 		; Vtotal = 22 (38 - 16)
 		lda	#4
@@ -132,10 +131,10 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 		lda	#34-16			; vsync pos
 		sta	sheila_CRTC_dat		
 		
-		lda	#$07
-		sta	$FE23
-		lda	#$07
-		sta	$FE23
+;		lda	#$07
+;		sta	$FE23
+;		lda	#$07
+;		sta	$FE23
 
 
 		jmp	@out
@@ -165,10 +164,10 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 		lda	#>(chronospipe/8)
 		sta	sheila_CRTC_dat
 
-		lda	#$00
-		sta	$FE23
-		lda	#$70
-		sta	$FE23
+;		lda	#$00
+;		sta	$FE23
+;		lda	#$70
+;		sta	$FE23
 
 		
 		jsr	wait_512
@@ -188,6 +187,7 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 		sta	SHEILA_NULA_CTLAUX
 
 
+		inc 	frame_ctr
 
 		bne	@out
 
