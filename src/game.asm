@@ -16,6 +16,8 @@ TILE_UP_TIT		:= $19
 TILE_UP_TIT2		:= $9
 TILE_CUBE		:= $10
 
+VISTILES_SIZE		:= 16*8
+
 
 STARS_COUNT	:= 16
 	.struct star
@@ -160,14 +162,7 @@ tblKeys:		.byte	$68	; down	?
 
 		jsr	init_irq
 
-		jsr	map_init
-		jsr	render_stars_and_bullets
-		ldx	have_nula
-		dex
-		txa
-		eor	#$FF
-		tax
-		jsr	render_player
+		; init data structures
 
 		lda	#0
 		sta	zp_cycle
@@ -185,8 +180,28 @@ tblKeys:		.byte	$68	; down	?
 		adc	zp_frames_per_movex3
 		sta	zp_frames_per_movex3
 
+		lda	#$7F
+		ldx	#VISTILES_SIZE
+@cv:		sta	visible_tiles-1,X
+		dex
+		bne	@cv
+
 		lda	#$FF
 		sta	firing_tits
+
+
+		; init screen
+
+
+		jsr	map_init
+		jsr	render_stars_and_bullets
+		ldx	have_nula
+		dex
+		txa
+		eor	#$FF
+		tax
+		jsr	render_player
+
 
 main_loop:
 
@@ -1261,7 +1276,7 @@ fire_pend:	.res	1		; player fire is pending
 
 	.align 8
 visible_tiles:
-		.res	8*16		; the tiles currently on screen row minor 
+		.res	VISTILES_SIZE		; the tiles currently on screen row minor 
 firing_tits:
 
 		.res	8*2		; laser beams in use each two bytes for a start/stop offset in tilemap
