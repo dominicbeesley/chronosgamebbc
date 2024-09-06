@@ -16,6 +16,55 @@
 FRAME=19968		; what should be needed for non-interlaced - works on GS GM6845S and b-em
 ;FRAME=20000		; what is needed for b-em with i-lace
 
+VIA_INT_T1	:= $40
+
+CRTC_R1_H_DISP	:= 1
+CRTC_R4_V_TOT	:= 4
+CRTC_R7_V_SYNC	:= 7
+CRTC_R12_ADDR   := 12
+
+
+; SCREEN LAYOUT
+
+;	       <--- 32 char cells = 64 bytes --->
+;0	+--------------------------------------------+
+;1	| Top play field                             |
+;2	|                                            |
+;3	|                                            |
+;4	|                                            |
+;...	..............................................
+;11	|                                            |
+;12	|                                            |
+;13	|                                            |
+;14	|                                            |
+;15	+------------+-------------------------------+
+;16	| Logo       |             
+;17	|            |             
+;18	|            |             
+;19	|            |             
+;...    ..............
+;27	|            |             
+;28	|            |             
+;29	|            |             
+;30	|            |             
+;31	+------------+
+;32
+;33
+;34     VSYNC on this line
+;35
+;36
+;37
+;38
+
+SCREEN_V_TOT		:= 39
+SCREEN_V_SYNC		:= 34
+
+PLAYFIELD_V_TOT		:= 16
+PLAYFIELD_H_DISP	:= 64
+
+LOGO_V_TOT		:= SCREEN_V_TOT-PLAYFIELD_V_TOT		; goes to end of screen
+LOGO_V_SYNC		:= SCREEN_V_SYNC-PLAYFIELD_V_TOT
+LOGO_H_DISP		:= 36
 
 old_irq1:	.word	0		; old irq1 vector
 frame_ctr:	.byte	0		; increments each frame at mid-point
@@ -112,7 +161,7 @@ wait_512:	pha			;3
 		rts			;6
 
 my_irq1:	lda	sheila_SYSVIA_ifr
-		and	#$40					
+		and	#VIA_INT_T1			
 		beq	@notSysT1
 
 		sta	sheila_SYSVIA_ifr
@@ -121,26 +170,21 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 
 		; Set second half of screen to be big...
 		; Vtotal = 22 (38 - 16)
-		lda	#4
+		lda	#CRTC_R4_V_TOT
 		sta	sheila_CRTC_reg
-		lda	#22
+		lda	#LOGO_V_TOT-1
 		sta	sheila_CRTC_dat		
 
-		lda	#7
+		; TODO move out of IRQ handler - can be set and forget as we wont reach this point in playfield
+		lda	#CRTC_R7_V_SYNC
 		sta	sheila_CRTC_reg
-		lda	#34-16			; vsync pos
+		lda	#LOGO_V_SYNC
 		sta	sheila_CRTC_dat		
 		
-;		lda	#$07
-;		sta	$FE23
-;		lda	#$07
-;		sta	$FE23
-
-
 		jmp	@out
 		
 @notSysT1:	lda	sheila_USRVIA_ifr
-		and	#$40
+		and	#VIA_INT_T1
 		beq	@notUsrT1
 
 		sta	sheila_USRVIA_ifr
@@ -148,18 +192,17 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 		; USR via T1 has fired - we are in first half of screen so fiddle registers to:
 
 		; Set first half of screen to be small and no vsync...
-		; Vtotal = 22 (38 - 16)
-		lda	#4
+		lda	#CRTC_R4_V_TOT
 		sta	sheila_CRTC_reg
-		lda	#15
+		lda	#PLAYFIELD_V_TOT-1
 		sta	sheila_CRTC_dat		
 
 		; set next field start address to 0
-		lda	#13
+		lda	#CRTC_R12_ADDR+1
 		sta	sheila_CRTC_reg
 		lda	#<(chronospipe/8)
 		sta	sheila_CRTC_dat
-		lda	#12
+		lda	#CRTC_R12_ADDR
 		sta	sheila_CRTC_reg
 		lda	#>(chronospipe/8)
 		sta	sheila_CRTC_dat
@@ -176,9 +219,9 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 ;@www:		sbc	#1
 ;		bne	@www
 ;
-		lda	#1
+		lda	#CRTC_R1_H_DISP
 		sta	sheila_CRTC_reg
-		lda	#36
+		lda	#LOGO_H_DISP
 		sta	sheila_CRTC_dat
 
 
@@ -200,18 +243,19 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 
 		; set next field start address to playfield
 
-		lda	#13
+		lda	#CRTC_R12_ADDR+1
 		sta	sheila_CRTC_reg
 		lda	playfield_top_crtc
 		sta	sheila_CRTC_dat
-		lda	#12
+		lda	#CRTC_R12_ADDR
 		sta	sheila_CRTC_reg
 		lda	playfield_top_crtc+1
 		sta	sheila_CRTC_dat
 
-		lda	#1
+		; set H total to size of playfield in bytes
+		lda	#CRTC_R1_H_DISP
 		sta	sheila_CRTC_reg
-		lda	#$40
+		lda	#PLAYFIELD_H_DISP
 		sta	sheila_CRTC_dat
 
 
