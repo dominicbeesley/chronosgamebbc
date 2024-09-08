@@ -2,6 +2,7 @@
 		.include "oslib.inc"
 		.include "hardware.inc"
 		.include "mosrom.inc"
+		.include "debug.inc"
 
 TILE_BLANK=$7F
 PLAYFIELD_STRIDE	:= 32*8*2
@@ -31,21 +32,6 @@ BULLET_COUNT	:= 16
 		py	.byte
 		status	.byte
 	.endstruct
-
-		.macro	DEBUG_STRIPE ccc
-		.ifdef DO_DEBUG_STRIPES
-			php
-			pha
-			sei
-			lda	#$00 + ((ccc >> 8) & $0F)
-			sta	SHEILA_NULA_PALAUX
-			lda	#ccc & $FF
-			sta	SHEILA_NULA_PALAUX
-			pla
-			plp
-		.endif
-		.endmacro
-
 		
 		.export		playfield_top_crtc
 		.export 	have_nula
@@ -111,6 +97,13 @@ tblKeys:		.byte	$68	; down	?
 		sta	sheila_SYSVIA_acr
 		sta	sheila_USRVIA_acr
 
+.ifdef DO_DEBUG_USERPORT
+		lda	#$FF
+		sta	sheila_USRVIA_ddrb
+		lda	#$0
+		sta	sheila_USRVIA_orb
+.endif
+
 		; setup CRTC / ULA for our special small mode for playfield
 		lda	#$D8			; mode 1 : 7=%10= mo.1 cursor, 4:1=20k, 3:2 = 40 chars, 1=0 no ttx, 0=0 no flash
 		sta	sheila_VIDPROC_ctl
@@ -132,9 +125,6 @@ tblKeys:		.byte	$68	; down	?
 		lda	have_nula
 		beq	@nonula
 
-		; blank some bits at left hand side
-		lda	#$38
-		sta	SHEILA_NULA_CTLAUX
 
 @nonula:
 
