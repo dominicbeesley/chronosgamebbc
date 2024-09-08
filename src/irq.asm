@@ -115,7 +115,7 @@ LOGO_V_TOT		:= SCREEN_V_TOT-PLAYFIELD_V_TOT		; goes to end of screen
 LOGO_V_SYNC		:= SCREEN_V_SYNC-PLAYFIELD_V_TOT
 LOGO_H_DISP		:= 36
 
-LOGO_H_ADJ		:= 10					; this is used to center the logo area
+LOGO_H_ADJ		:= 18					; this is used to center the logo area
 
 
 USR_T1_V		:= 15					; char row on which USR_T1 fires
@@ -210,7 +210,7 @@ wait_vsync:
 	.endproc
 
 
-wait_PFS:	WAIT_N 680
+wait_PFS:	WAIT_N 450
 wait_SSS:	WAIT_N 130
 
 		;jsr			;6
@@ -247,12 +247,13 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 @notSysT1:	
 		lda	sheila_USRVIA_ifr
 		and	#VIA_INT_T1
-		beq	@notUsrT1
+		bne	@usrT1
+		jmp	@notUsrT1
 
 ;================================================================================
 ; USR T1
 ;================================================================================
-		sta	sheila_USRVIA_ifr
+@usrT1:		sta	sheila_USRVIA_ifr
 
 		; USR via T1 has fired - we are near end of playfield
 
@@ -316,6 +317,11 @@ my_irq1:	lda	sheila_SYSVIA_ifr
 
 
 		inc 	frame_ctr
+
+		lda	#$FF
+		sta	sheila_USRVIA_ddrb
+		lda	frame_ctr
+		sta	sheila_USRVIA_orb
 
 		bne	@out
 
