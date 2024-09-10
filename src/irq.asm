@@ -220,7 +220,9 @@ wait_16:	nop			;2
 @w:		nop			;2
 		rts			;6
 
-my_irq1:	lda	sheila_SYSVIA_ifr
+my_irq1:	cld				; ensure decimal mode cleared
+
+		lda	sheila_SYSVIA_ifr
 		and	#VIA_INT_T1			
 		beq	@notSysT1
 

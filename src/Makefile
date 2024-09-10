@@ -56,7 +56,7 @@ $(BUILD)/sound.bin:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_sound.bin))) so
 $(BUILD)/%.o: 	%.asm $(DEPS) 
 	$(AS) $(ASFLAGS) -o $@ -g -l $(basename $@).lst $<
 
-$(BUILD)/%.o: 	$(TOP)/blit-lib/%.asm $(DEPS) 
+$(BUILD)/%.o: 	$(BUILD)/%.asm $(DEPS) 
 	$(AS) $(ASFLAGS) -o $@ -g -l $(basename $@).lst $<
 
 
@@ -72,6 +72,11 @@ $(BUILD)/player.bin: $(SPECSRC)/chronosm.bin
 $(BUILD)/chronospipe.bin: $(SPECSRC)/chronosm.bin
 	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 18 --height 32 --offset 0x64A8 --count 1 $< $@
 
+$(BUILD)/numfont.f1: $(SPECSRC)/chronosm.bin
+	$(SCRIPTS)/numfont.py $< $@
+$(BUILD)/numfont.f2: $(BUILD)/numfont.f1
+	$(SCRIPTS)/tileconv.py --bpp2 --width 1 --height 8 --offset 0x0 --count 10 $< $@
+
 $(BUILD)/map.bin: $(SPECSRC)/chronosm.bin
 #	dd if=$< of=$@ bs=1 skip=$$(( 0x8000 * 1 )) count=$$(( 0x36e2 * 1 ))
 	dd if=$< of=$@ bs=256 skip=$$(( 0x90 )) count=$$(( 0x37 ))
@@ -81,6 +86,7 @@ $(BUILD)/game.o:	$(BUILD)/chronospipe.bin
 $(BUILD)/game.o:	$(BUILD)/blocks16x16.bin
 $(BUILD)/game.o:	$(BUILD)/player.bin
 $(BUILD)/game.o:	$(BUILD)/map.bin
+$(BUILD)/game.o:	$(BUILD)/numfont.f2
 
 clean:
 	-rm $(TARGETS_B) 2>/dev/null
@@ -89,6 +95,8 @@ clean:
 	-rm $(BUILD)/blocks16x16.bin
 	-rm $(BUILD)/player.bin
 	-rm $(BUILD)/chronospipe.bin
+	-rm $(BUILD)/numfont.f1
+	-rm $(BUILD)/numfont.f2
 	-rm $(BUILD)/map.bin
 	-rm $(BUILD)/map.bin.inf
 	-rm $(SSD)

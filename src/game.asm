@@ -55,6 +55,9 @@ zp_frames_per_move:
 		.res	1		; used to multiply speed of stars/player
 zp_frames_per_movex3:
 		.res	1		; used for number of pixels to move bullets
+
+score:		.res	4		; score in little-endian BCD
+
 		.data
 playfield_top_crtc:	.word	PLAYFIELD_TOP / 8			; start of playfield screen (in crtc address)
 playfield_top:		.word	PLAYFIELD_TOP				; start of playfield screen (in RAM address)
@@ -184,6 +187,9 @@ tblKeys:		.byte	$68	; down	?
 
 
 		jsr	map_init
+		jsr	zeroscore
+
+
 		jsr	render_stars_and_bullets
 		ldx	have_nula
 		dex
@@ -258,6 +264,8 @@ main_loop:
 @sss:		jsr	render_player
 @nos:
 		inc	zp_cycle
+
+		jsr	renderscore
 
 		jmp	main_loop
 
@@ -1178,7 +1186,60 @@ move_player1:	lda	next_player_x
 		rts
 
 ;;;;; scores
-add_A_score:	rts
+add_A_score:	php
+		sed					; enable BCD
+		clc
+		adc	score
+		sta	score
+		bcc	@nc
+		lda	score+1
+		adc	#0
+		sta	score+1
+		lda	score+2
+		adc	#0
+		sta	score+2
+		lda	score+3
+		adc	#0
+		sta	score+3
+@nc:		plp
+		rts
+
+renderscore:	ldx	#0				; screen pointer
+		ldy	#3				; score  pointer
+@lp:		lda	score,Y
+		jsr	renderBCD2
+		dey
+		bpl	@lp
+		rts
+
+zeroscore:	ldx	#3
+		lda	#0
+@l:		sta	score,X
+		dex
+		bpl	@l
+		rts
+
+renderBCD2:	pha
+		and	#$F0
+		jsr	@r
+		pla
+		asl	A
+		asl	A
+		asl	A
+		asl	A
+@r:		sty	zp_tmp
+		ldy	#16
+		sty	zp_tmp2
+		tay
+@r8:		lda	NUMFONT,Y
+		iny
+		sta	scoreboard,X
+		inx
+		dec	zp_tmp2
+		bne	@r8
+		ldy	zp_tmp
+		rts
+
 
 
 		.data
@@ -1187,6 +1248,8 @@ blockx16x16:	.incbin "../build/src/blocks16x16.bin"
 playersprites:	.incbin "../build/src/player.bin"
 		.align	8		
 chronospipe:	.incbin "../build/src/chronospipe.bin"
+scoreboard:	.res	8*8*2				; bitmap for score
+NUMFONT:	.incbin "../build/src/numfont.f2"
 
 playfield_CRTC_mode:
 		.byte	$7f				; 0 Horizontal Total	 =128
