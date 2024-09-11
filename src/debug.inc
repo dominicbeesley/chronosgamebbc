@@ -5,15 +5,16 @@
 
 		.macro	DEBUG_STRIPE ccc
 		.ifdef DO_DEBUG_STRIPES
-			php
-			pha
-			sei
-			lda	#$00 + ((ccc >> 8) & $0F)
-			sta	SHEILA_NULA_PALAUX
-			lda	#ccc & $FF
-			sta	SHEILA_NULA_PALAUX
-			pla
-			plp
+			php					;	3	1
+			pha					;	3	1
+			lda	#$00 + ((ccc >> 8) & $0F)	;	2	2
+			sei					;	2	1
+			sta	SHEILA_NULA_PALAUX		;	4	3
+			lda	#ccc & $FF			;	2	2
+			sta	SHEILA_NULA_PALAUX		;	4	3
+			pla					;	4	1
+			plp					;	4	1
+								;	26	14
 		.endif
 		.endmacro
 

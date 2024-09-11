@@ -210,8 +210,14 @@ wait_vsync:
 	.endproc
 
 
-wait_PFS:	WAIT_N 450
+wait_PFS:	
+.ifdef 	DO_DEBUG_STRIPES
+		WAIT_N 570
+.else
+		WAIT_N 570+26+26
+.endif
 wait_SSS:	WAIT_N 130
+wait_SSS1:	WAIT_N 64
 
 		;jsr			;6
 wait_16:	nop			;2
@@ -281,12 +287,6 @@ my_irq1:	cld				; ensure decimal mode cleared
 		DEBUG_STRIPE	$F73
 		DEBUG_STRIPE	$000
 
-		; logo areas is narrow
-
-		lda	#CRTC_R1_H_DISP
-		sta	sheila_CRTC_reg
-		lda	#LOGO_H_DISP
-		sta	sheila_CRTC_dat
 
 		; we need to fiddle one scan line to be slightly longer to center the smaller area without upsetting
 		; the sync train
@@ -296,8 +296,30 @@ my_irq1:	cld				; ensure decimal mode cleared
 		lda	#SCREEN_H_TOT+LOGO_H_ADJ-1
 		sta	sheila_CRTC_dat
 
+		; don't blank some pixels at left hand side to hide drawing the point at which the 
+		; playfield start to render should have passed so we can do this safely now
+		lda	#$30
+		sta	SHEILA_NULA_CTLAUX
+
+
 		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
-		jsr	wait_SSS	; slightly less than a scan line which is 128
+		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
+
+		; no sub-scroll in log area, this hopefully in the blanking period
+		lda	#$20
+		sta	SHEILA_NULA_CTLAUX
+
+		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
+		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
+
+
+		; logo areas is narrow
+
+		lda	#CRTC_R1_H_DISP
+		sta	sheila_CRTC_reg
+		lda	#LOGO_H_DISP
+		sta	sheila_CRTC_dat
+
 
 		lda	#CRTC_R0_H_TOT
 		sta	sheila_CRTC_reg
@@ -308,14 +330,6 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_SYNC-LOGO_H_ADJ
 		sta	sheila_CRTC_dat
-
-		; don't blank some pixels at left hand side to hide drawing
-		lda	#$30
-		sta	SHEILA_NULA_CTLAUX
-
-
-		lda	#$20
-		sta	SHEILA_NULA_CTLAUX
 
 
 		inc 	frame_ctr
