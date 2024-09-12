@@ -212,9 +212,9 @@ wait_vsync:
 
 wait_PFS:	
 .ifdef 	DO_DEBUG_STRIPES
-		WAIT_N 570
+		WAIT_N 480
 .else
-		WAIT_N 570+26+26
+		WAIT_N 480+26+26
 .endif
 wait_SSS:	WAIT_N 130
 wait_SSS1:	WAIT_N 64
