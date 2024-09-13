@@ -4,6 +4,9 @@
 		.include "mosrom.inc"
 		.include "debug.inc"
 
+ZP_ROM_SLOT=$80
+
+
 TILE_BLANK=$7F
 PLAYFIELD_STRIDE	:= 32*8*2
 PLAYFIELD_SIZE  	:= $2000
@@ -378,7 +381,7 @@ add_tile_to_column:
 		sta	zp_tiledst_ptr+1
 		rts
 
-map_init:	lda	#0
+map_init:	lda	z:ZP_ROM_SLOT
 		sta	zp_mos_curROM
 		sta	SHEILA_ROMCTL_SWR
 		sta	zp_map_ptr
