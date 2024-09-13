@@ -161,11 +161,13 @@ init_irq:
 		sty	sheila_SYSVIA_t1ch
 
 
-		; now USR T1 set up to fire in top half of screen ~ 6 lines after vsync
+		; now USR T1 set up to fire in top half of screen one character row before end of playfield
 		jsr	wait_vsync
 
 		ldy	#USR_T1_V+(SCREEN_V_TOT-SCREEN_V_SYNC)
 		jsr	wait_1024y
+
+		jsr	wait_SSS1	; another approx. half line's wait
 
 		ldx	#<(FRAME-2)
 		ldy	#>(FRAME-2)
@@ -217,7 +219,7 @@ wait_PFS:
 		WAIT_N 480+26+26
 .endif
 wait_SSS:	WAIT_N 130
-wait_SSS1:	WAIT_N 64
+wait_SSS1:	WAIT_N 44
 
 		;jsr			;6
 wait_16:	nop			;2
@@ -284,6 +286,8 @@ my_irq1:	cld				; ensure decimal mode cleared
 		; wait a character row...we should be now in blanking area just after last scan line of first part		
 		jsr	wait_PFS		; this number arrived at by experimentation....
 
+
+
 		DEBUG_STRIPE	$F73
 		DEBUG_STRIPE	$000
 
@@ -295,6 +299,8 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT+LOGO_H_ADJ-1
 		sta	sheila_CRTC_dat
+		lda	#$0
+		sta	sheila_USRVIA_orb
 
 		; don't blank some pixels at left hand side to hide drawing the point at which the 
 		; playfield start to render should have passed so we can do this safely now
@@ -325,6 +331,8 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT-1
 		sta	sheila_CRTC_dat
+		lda	#$FF
+		sta	sheila_USRVIA_orb
 
 		lda	#CRTC_R2_H_SYNC
 		sta	sheila_CRTC_reg
@@ -334,10 +342,6 @@ my_irq1:	cld				; ensure decimal mode cleared
 
 		inc 	frame_ctr
 
-		lda	#$FF
-		sta	sheila_USRVIA_ddrb
-		lda	frame_ctr
-		sta	sheila_USRVIA_orb
 
 		bne	@out
 
