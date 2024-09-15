@@ -133,16 +133,12 @@ tblKeys:		.byte	$68	; down	?
 
 
 @nonula:
+		ldx	#16
+@pallp:		lda	playpal-1,X
+		sta	sheila_VIDPROC_pal
+		dex
+		bne	@pallp
 
-		; make colour 1 yellow
-		lda	#%00101100
-		sta	sheila_VIDPROC_pal
-		lda	#%00111100
-		sta	sheila_VIDPROC_pal
-		lda	#%01101100
-		sta	sheila_VIDPROC_pal
-		lda	#%01111100
-		sta	sheila_VIDPROC_pal
 
 		; disable keyboard scan
 
@@ -1272,6 +1268,30 @@ playfield_CRTC_mode:
 
 have_nula:	.byte	1
 stars_rendered:	.byte	0				; flag stars have been erased and need rerendering/moving
+
+playpal:
+
+		; make colour 0 black
+		.byte	%00001111
+		.byte	%00011111
+		.byte	%01001111
+		.byte	%01011111
+		; make colour 1 yellow
+		.byte	%00101100
+		.byte	%00111100
+		.byte	%01101100
+		.byte	%01111100
+		; make colour 2 yellow
+		.byte	%10001100
+		.byte	%10011100
+		.byte	%11001100
+		.byte	%11011100
+		; make colour 3 white
+		.byte	%10101000
+		.byte	%10111000
+		.byte	%11101000
+		.byte	%11111000
+
 
 stars:		
 	.word   $78C0
