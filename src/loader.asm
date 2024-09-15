@@ -6,12 +6,16 @@
 MO7SCR=$7C00
 PROBE=$8009		; location to probe in SWRAM
 
+GAME_EXEC	:= $1800
+GAME_LOAD	:= $1800
+
 game_romslot	:= $80			; where the game looks for rom slot
 
 
 		.zeropage
 zp_tmp:		.res	1
 zp_tmp2:	.res	1
+zp_tmp3:	.res	1
 zp_ptr:		.res	2
 		.code
 		
@@ -37,7 +41,6 @@ zp_ptr:		.res	2
 		stx	zp_tmp
 clp2:		
 		jsr	wait10vs
-
 clp1:		ldx	#40
 		ldy	zp_tmp
 @l:		
@@ -121,8 +124,9 @@ clp1:		ldx	#40
 		; we've tried all the roms
 		lda	game_romslot
 		cmp	#16
-		bne	load_rom
-
+		beq	@bad
+		jmp	load_rom
+@bad:
 		; we didn't find a free slot...bark
 		jsr	PrintI
 		.byte	12,"Sorry, Chronos needs a free sideways",13,10,"RAM slot",13,10,0
@@ -141,11 +145,53 @@ full_slot_found:
 
 
 rom_loaded:
-		; *RUN CHRONOS
+		; *LOAD CHRONOS 1800
 
-		ldx	#<osclirunchronos
-		ldy	#>osclirunchronos
-		jsr	OSCLI
+		ldx	#<osfilechronos
+		ldy	#>osfilechronos
+		lda	#$FF
+		jsr	OSFILE
+
+		; fade out
+
+		ldx	#$7
+		stx	zp_tmp2			; number of fades
+@flp3:		ldx	#$4			; number of pages
+		stx	zp_tmp
+		lda	#<MO7SCR
+		sta	zp_ptr
+		lda	#>MO7SCR
+		sta	zp_ptr+1
+		jsr	wait10vs
+@flp2:		ldy	#0
+@flp:		lda	(zp_ptr),Y
+		cmp	#129
+		bcc	@sk
+		cmp	#136
+		bcc	@do
+		cmp	#145
+		bcc	@sk
+		cmp	#152
+		bcs	@sk
+@do:		sec
+		sbc	#1
+		cmp	#128
+		beq	@blk
+		cmp	#144
+		bne	@nxt
+@blk:		lda	#152		; conceal
+@nxt:		sta	(zp_ptr),Y		
+@sk:		iny
+		bne	@flp
+		inc	zp_ptr+1
+		dec	zp_tmp
+		bne	@flp2
+
+		dec	zp_tmp2
+		bne	@flp3
+
+
+		jmp	GAME_EXEC		; enter game
 
 
 exiterr:	
@@ -194,11 +240,11 @@ load_rom:
 
 
 wait10vs:
-		ldx	#10
-		stx	zp_tmp2
+		lda	#5
+		sta	zp_tmp3
 @wlp:		lda	#19
 		jsr	OSBYTE
-		dec	zp_tmp2
+		dec	zp_tmp3
 		bne	@wlp
 		rts
 
@@ -235,7 +281,12 @@ osfileblock:	.word	osfilename
 		.dword  0
 		.dword  0
 osfilename:	.byte   "S.MAP",13
-osclirunchronos:.byte   "/CHRONOS",13
+osfilechronos:	.word	osfilen_chronos
+		.dword	GAME_LOAD
+		.dword	0
+		.dword	0
+		.dword	0
+osfilen_chronos:.byte   "CHRONOS",13
 
 		.segment	"SPLASH"
 		.incbin 	"splash.mo7"
