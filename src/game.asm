@@ -384,9 +384,10 @@ add_tile_to_column:
 map_init:	lda	z:ZP_ROM_SLOT
 		sta	zp_mos_curROM
 		sta	SHEILA_ROMCTL_SWR
+		lda	#0
 		sta	zp_map_ptr
 		sta	zp_map_rle
-		lda	#$80
+		lda	#$81			; map data starts at offset $100 in ROM
 		sta	zp_map_ptr+1
 		rts
 

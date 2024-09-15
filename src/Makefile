@@ -5,19 +5,21 @@ ASFLAGS=--auto-import -I $(TOP)/includes -I $(BUILD) -DDO_DEBUG_STRIPES -DDO_DEB
 LD=ld65
 INCS=$(wildcard $(TOP)/includes/*.inc) 
 DEPS=$(INCS) 
-TARGETS=game.bin sound.bin
+TARGETS=game.bin sound.bin loader.bin map.rom
 OBJS_game.bin=	game irq
 OBJS_sound.bin=	sound
+OBJS_loader.bin= loader
+OBJS_map.rom= mapheader
 SPECSRC=./specSrc
 
 TARGETS_B = $(addprefix $(BUILD)/,$(TARGETS))
 
 DEPLOY=$(DEPLOY_TOP)
 SSD=$(SSDS)/chronos.ssd
-SSD_FILES=game.bin sound.bin
+SSD_FILES=game.bin sound.bin loader.bin map.rom
 
 SSD_FILES_B=$(addprefix $(BUILD)/, $(addsuffix .inf, $(SSD_FILES)))
-SSD_EXTRAS=boot.txt $(BUILD)/map.bin
+SSD_EXTRAS=boot.txt 
 
 ssd: all $(SSD)
 
@@ -52,6 +54,20 @@ $(BUILD)/sound.bin:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_sound.bin))) so
 	$(SCRIPTS)/ld65debugsymbols.pl $(basename $@).dbg $(basename $@).2.noi
 	da65 --start-addr 0x1800 $@ -o $@.da.s -v -v -v
 
+$(BUILD)/loader.bin:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_loader.bin))) loader.cfg
+	$(LD) -vm -Ln $(basename $@).sy2 -m $(basename $@).map --dbgfile $(basename $@).dbg -o $@ -C $(filter %.cfg, $^) $(filter %.o, $^) $(LIBS)
+	echo "$$.LOADER FFFF7400 FFFF7400" >$@.inf
+	$(SCRIPTS)/ca65lstupdate.pl $(basename $@).dbg $(BUILD)
+	$(SCRIPTS)/getsymbols.pl <$(basename $@).sy2 >$(basename $@).1.noi
+	$(SCRIPTS)/ld65debugsymbols.pl $(basename $@).dbg $(basename $@).2.noi
+
+$(BUILD)/map.rom:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_map.rom))) map.cfg
+	$(LD) -vm -Ln $(basename $@).sy2 -m $(basename $@).map --dbgfile $(basename $@).dbg -o $@ -C $(filter %.cfg, $^) $(filter %.o, $^) $(LIBS)
+	echo "S.MAP FFFF8000 FFFF8000" >$@.inf
+	$(SCRIPTS)/ca65lstupdate.pl $(basename $@).dbg $(BUILD)
+	$(SCRIPTS)/getsymbols.pl <$(basename $@).sy2 >$(basename $@).1.noi
+	$(SCRIPTS)/ld65debugsymbols.pl $(basename $@).dbg $(basename $@).2.noi
+
 
 $(BUILD)/%.o: 	%.asm $(DEPS) 
 	$(AS) $(ASFLAGS) -o $@ -g -l $(basename $@).lst $<
@@ -80,13 +96,14 @@ $(BUILD)/numfont.f2: $(BUILD)/numfont.f1
 $(BUILD)/map.bin: $(SPECSRC)/chronosm.bin
 #	dd if=$< of=$@ bs=1 skip=$$(( 0x8000 * 1 )) count=$$(( 0x36e2 * 1 ))
 	dd if=$< of=$@ bs=256 skip=$$(( 0x90 )) count=$$(( 0x37 ))
-	echo "S.MAP FF8000 FF8000">$@.inf	
 
-$(BUILD)/game.o:	$(BUILD)/chronospipe.bin
-$(BUILD)/game.o:	$(BUILD)/blocks16x16.bin
-$(BUILD)/game.o:	$(BUILD)/player.bin
-$(BUILD)/game.o:	$(BUILD)/map.bin
-$(BUILD)/game.o:	$(BUILD)/numfont.f2
+$(BUILD)/game.o:		$(BUILD)/chronospipe.bin
+$(BUILD)/game.o:		$(BUILD)/blocks16x16.bin
+$(BUILD)/game.o:		$(BUILD)/player.bin
+$(BUILD)/game.o:		$(BUILD)/numfont.f2
+
+$(BUILD)/mapheader.o:	$(BUILD)/map.bin
+
 
 clean:
 	-rm $(TARGETS_B) 2>/dev/null
