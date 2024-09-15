@@ -56,7 +56,7 @@ $(BUILD)/sound.bin:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_sound.bin))) so
 
 $(BUILD)/loader.bin:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_loader.bin))) loader.cfg
 	$(LD) -vm -Ln $(basename $@).sy2 -m $(basename $@).map --dbgfile $(basename $@).dbg -o $@ -C $(filter %.cfg, $^) $(filter %.o, $^) $(LIBS)
-	echo "$$.LOADER FFFF7400 FFFF7400" >$@.inf
+	echo "$$.LOADER FFFF7000 FFFF7400" >$@.inf
 	$(SCRIPTS)/ca65lstupdate.pl $(basename $@).dbg $(BUILD)
 	$(SCRIPTS)/getsymbols.pl <$(basename $@).sy2 >$(basename $@).1.noi
 	$(SCRIPTS)/ld65debugsymbols.pl $(basename $@).dbg $(basename $@).2.noi
