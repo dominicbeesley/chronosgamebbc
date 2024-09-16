@@ -369,22 +369,7 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_dat
 
 
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
+		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
 
 
 		; we need to fiddle one scan line to be slightly shorter to center the larger playfield
