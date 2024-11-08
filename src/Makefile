@@ -87,6 +87,8 @@ $(BUILD)/player.bin: $(SPECSRC)/chronosm.bin
 	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 4 --height 8 --offset 0xCC6E --count 2 --permute RII $< $@
 $(BUILD)/chronospipe.bin: $(SPECSRC)/chronosm.bin
 	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 18 --height 32 --offset 0x64A8 --count 1 $< $@
+$(BUILD)/enemies.bin: $(SPECSRC)/chronosm.bin
+	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 2 --height 16 --offset 0xCCEE --count 28 $< $@
 
 $(BUILD)/numfont.f1: $(SPECSRC)/chronosm.bin
 	$(SCRIPTS)/numfont.py $< $@
@@ -101,6 +103,7 @@ $(BUILD)/game.o:		$(BUILD)/chronospipe.bin
 $(BUILD)/game.o:		$(BUILD)/blocks16x16.bin
 $(BUILD)/game.o:		$(BUILD)/player.bin
 $(BUILD)/game.o:		$(BUILD)/numfont.f2
+$(BUILD)/game.o:		$(BUILD)/enemies.bin
 
 $(BUILD)/mapheader.o:	$(BUILD)/map.bin
 

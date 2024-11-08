@@ -35,6 +35,13 @@ BULLET_COUNT	:= 16
 		py	.byte
 		status	.byte
 	.endstruct
+ENEMIES_COUNT	:= 3
+	.struct enemy
+		px	.byte
+		py	.byte
+		status	.byte
+		type	.byte
+	.endstruct
 		
 		.export		playfield_top_crtc
 		.export 	have_nula
@@ -47,6 +54,7 @@ zp_tmp:		.res 	1		; temporary
 zp_tmp2:	.res 	1		; temporary
 zp_tmp3:	.res 	1		; temporary
 zp_tmp4:	.res 	1		; temporary
+zp_tmp5:	.res 	1		; temporary
 zp_dest_ptr:	.res 	2		; current blit destination
 zp_tiledst_ptr:	.res 	2		; current tile destination in the tile column
 zp_src_ptr:	.res	2		; current tile source pointer
@@ -59,7 +67,16 @@ zp_frames_per_move:
 zp_frames_per_movex3:
 		.res	1		; used for number of pixels to move bullets
 
+zp_anime_ctr:	.res	1		; index for animating enemies etc
+zp_anime_ctr6:	.res	1		; index for animating enemies etc (modulo 6)
+zp_cur_enemy:	.res	1		; index for currently processing enemy
+
 score:		.res	4		; score in little-endian BCD
+
+starflipcur:	.res	1		; flips between 0 and STARS_COUNT*.sizeof(star)
+starflipnxt:	.res	1		; flips between 0 and STARS_COUNT*.sizeof(star) in opposite sense of above
+bulletflipcur:	.res	1		; flips between 0 and BULLET_COUNT*.sizeof(bullet)
+bulletflipnxt:	.res	1		; flips between 0 and BULLET_COUNT*.sizeof(bullet) in opposite sense of above
 
 		.data
 playfield_top_crtc:	.word	PLAYFIELD_TOP / 8			; start of playfield screen (in crtc address)
@@ -159,6 +176,15 @@ tblKeys:		.byte	$68	; down	?
 		lda	#0
 		sta	zp_cycle
 		sta	fire_pend
+		sta	zp_anime_ctr6
+		sta	zp_anime_ctr
+		sta	starflipcur
+		sta	bulletflipcur
+
+		lda	#STARS_COUNT*.sizeof(star)
+		sta	starflipnxt
+		lda	#BULLET_COUNT*.sizeof(bullet)
+		sta	bulletflipnxt
 
 		ldx	#1
 		lda	have_nula
@@ -197,70 +223,120 @@ tblKeys:		.byte	$68	; down	?
 		tax
 		jsr	render_player
 
+		lda	have_nula
+		bne	@s
+		jmp	main_loop
+@s:		
+
+;   _ _  _ . _   | _  _  _ 
+;  | | |(_||| |__|(_)(_)|_)
+;                       |
 
 main_loop:
+		; At this point we should be somewhere at the end of the bottom half of the screen
+		; we can do computationally intensive stuff here
 
-		jsr	check_keys
+	DEBUG_STRIPE	$FFF
 
-		jsr	move_player0
+		jsr	check_keys			; check keyboard
+		jsr	move_player0			; calculate player moves (but don't store yet)
+		jsr	move_stars
+		jsr	move_bullets
 
-		DEBUG_STRIPE	$000
-		jsr	wait_midframe
-		DEBUG_STRIPE	$333
+		;;; TODO - there's loads of spare time here for sound effects and other
+		;;; stuff!!!
+
+	DEBUG_STRIPE	$00F
+		jsr	wait_midframe			; wait for middle of frame i.e. end of play field
+	DEBUG_STRIPE	$333
 
 		lda	#0
-		sta	stars_rendered
+		sta	stars_rendered			; indicate stars not rendered
 		lda	have_nula
-		beq	@nonula
-		DEBUG_STRIPE	$033
-		jsr	render_stars_and_bullets
-		DEBUG_STRIPE	$333
+		beq	@nonula				; skip forwards if no nula
+	DEBUG_STRIPE	$033
+		jsr	render_stars_and_bullets	; NULA: we always UN-render stars and bullets here
+	DEBUG_STRIPE	$333
 		ldx	zp_cycle
 		dex
-		jsr	render_player
+		jsr	render_player			; NULA: we always UN-render the player with the relevant offset
 @nonula:
 
 		lda	zp_cycle
 		and	#$03
 		bne	@not_scroll
+
+		; do scroll actions here every 4th frame
+
 		lda	have_nula
 		bne	@s
-		DEBUG_STRIPE	$033
-		jsr	render_stars_and_bullets
-		DEBUG_STRIPE	$333
+	DEBUG_STRIPE	$033		
+		jsr	render_stars_and_bullets	; NON-NULA UN-render stars and bullets (non-NULA)
+	DEBUG_STRIPE	$333
 		ldx	#0
-		jsr	render_player
-@s:		jsr	scroll
+		jsr	render_player			; NON-NULA UN render the player with no offset
+@s:		jsr	scroll				; perform the 1 byte shift hardware scroll
+
+		; update anime counters
+		inc	zp_anime_ctr
+		ldx	zp_anime_ctr6
+		inx
+		cpx	#6
+		bne	@s2
+		ldx	#0
+@s2:		stx	zp_anime_ctr6
+
 @not_scroll:
 		lda	zp_cycle
 		and	#$0F
 		bne	@nottiles
+
+		; every 16th frame do the move to the next tiles column
+
 		DEBUG_STRIPE	$FFF
 		jsr	next_tiles_column		; move to next tiles column
 		DEBUG_STRIPE	$0F3
-		jsr	check_and_fire
+		jsr	check_and_fire			; check for fire TODO: move to free time slot above - need to mark pending fires to avoid pre-rendering
 		DEBUG_STRIPE	$033
 		jmp	@notmoretiles
 @nottiles:	and	#1
 		beq	@notmoretiles
-		; get another tile from the map and add to the tiles column
-		jsr	add_tile_to_column
-
+		jsr	add_tile_to_column		; get another tile from the map and add to the tiles column
 @notmoretiles:
 
-		lda	stars_rendered
+		lda	stars_rendered			; check if we've un-rendered the stars (NULA or scroll)
 		beq	@nos
-		DEBUG_STRIPE	$303
-		jsr	move_stars_and_bullets
-		jsr	move_player1
+
+		; stars to be updated
+
+		DEBUG_STRIPE	$F0F
+
+		jsr	render_laser_tits
+
+		; update to use new stars and bullets
+		lda	starflipcur
+		pha
+		lda	starflipnxt
+		sta	starflipcur
+		pla
+		sta	starflipnxt
+
+		lda	bulletflipcur
+		pha
+		lda	bulletflipnxt
+		sta	bulletflipcur
+		pla
+		sta	bulletflipnxt
+
+		jsr	move_player1			; actually update player position
 		DEBUG_STRIPE	$033
-		jsr	render_stars_and_bullets
+		jsr	render_stars_and_bullets	; render the new stars
 		DEBUG_STRIPE	$333
 		ldx	#0
 		lda	have_nula
 		beq	@sss
 		ldx	zp_cycle
-@sss:		jsr	render_player
+@sss:		jsr	render_player			; render the ship (with offset of 0 if non-nula)
 @nos:
 		inc	zp_cycle
 
@@ -269,6 +345,10 @@ main_loop:
 		jmp	main_loop
 
 		rts
+
+
+
+
 
 next_tiles_column:
 
@@ -669,8 +749,23 @@ calc_screen_xy:
 		rts
 		
 
+	; on entry X contains the pixel offset to add (due to sub-byte scrolling for NULA or not)
+render_enemy:
+		txa
+		and	#3
+		;eor	#3
+		clc
+		ldx	zp_cur_enemy
+		adc	enemies+enemy::px,X
+		sta	zp_tmp2
+		tax
 
+		ldy	enemies+enemy::py,X
+		lda	#4
+		sta	zp_tmp5
+		bne	render_player_int
 
+	; on entry X contains the pixel offset to add (due to sub-byte scrolling for NULA or not)
 render_player:	txa
 		and	#3
 		;eor	#3
@@ -680,6 +775,9 @@ render_player:	txa
 		tax
 
 		ldy	player_y
+		lda	#8
+		sta	zp_tmp5
+render_player_int:
 		jsr	calc_screen_xy
 
 		; 
@@ -706,7 +804,8 @@ render_player:	txa
 		tay
 		sty	zp_tmp2
 
-		jsr	@render_ship_row
+		lda	zp_tmp5
+		jsr	@render_row
 
 		; skip rows in source we've already plotted
 		sec
@@ -735,10 +834,10 @@ render_player:	txa
 		sec
 		sbc	#>PLAYFIELD_SIZE
 @sw:		sta	zp_dest_ptr+1
+		lda	zp_tmp5
 
-@render_ship_row:
-		lda	#8
-		sta	zp_tmp
+
+@render_row:	sta	zp_tmp
 @cloop:		ldy	zp_tmp2
 @rloop:		lda	(zp_dest_ptr),Y
 		eor	(zp_src_ptr),Y
@@ -767,8 +866,6 @@ render_player:	txa
 		dec	zp_tmp
 		bne	@cloop
 
-
-
 @nomore:	rts
 
 		
@@ -778,15 +875,15 @@ render_stars_and_bullets:
 		; stars first
 		ldx	#STARS_COUNT
 		stx	zp_tmp
-		ldx	#0
+		ldx	starflipcur
 		ldy	#0
-@l:		lda	stars,X
+@l:		lda	stars+star::addr,X
 		sta	zp_dest_ptr
-		inx
-		lda	stars,X
+		lda	stars+star::addr+1,X
 		sta	zp_dest_ptr+1
+		lda	stars+star::bits,X
 		inx
-		lda	stars,X
+		inx
 		inx
 		inx
 		eor	(zp_dest_ptr),Y
@@ -794,9 +891,18 @@ render_stars_and_bullets:
 		dec	zp_tmp
 		bne	@l
 
-		; bullets
+		; scroll offset
+		lda	#0
+		bit	have_nula
+		beq	@noff
+		lda	zp_cycle
+		and	#3
+		eor	#3
+@noff:		sta	zp_tmp5
 
-		ldx	#.sizeof(bullet)*(BULLET_COUNT-1)	; point at last
+		ldx	#BULLET_COUNT
+		stx	zp_tmp
+		ldx	bulletflipcur
 @blp:		lda	bullets + bullet::status,X
 		bmi	@bnx
 
@@ -805,6 +911,8 @@ render_stars_and_bullets:
 		lda	bullets + bullet::py,X
 		tay
 		lda	bullets + bullet::px,X
+		clc
+		adc	zp_tmp5
 		tax
 		jsr	calc_screen_xy
 		ldy	#0
@@ -827,10 +935,11 @@ render_stars_and_bullets:
 		pla
 		tax
 
-@bnx:		dex
-		dex
-		dex
-		bpl	@blp
+@bnx:		inx
+		inx
+		inx
+		dec	zp_tmp
+		bne	@blp
 
 		;render the laser beams between up/down pointing tits
 		
@@ -906,6 +1015,11 @@ render_stars_and_bullets:
 
 @skiptits:
 
+		; render enemies
+
+
+
+
 
 		lda	#$FF
 		sta	stars_rendered
@@ -915,13 +1029,29 @@ render_stars_and_bullets:
 		rts
 
 
-move_stars_and_bullets:	
+;   _ _  _    _    __|_ _  _ _
+;  | | |(_)\/(/_  _\ | (_|| _\
+
+
+move_stars:	
+		; copy to next area
+		lda	#STARS_COUNT*.sizeof(star)
+		sta	zp_tmp
+		ldx	starflipcur
+		ldy	starflipnxt
+@clp:		lda	stars,X
+		sta	stars,Y
+		dec	zp_tmp
+		bne	@clp
+
 
 		ldx	#STARS_COUNT
 		stx	zp_tmp
-		ldx	#0		
+		ldx	starflipnxt
 @l:		ldy	zp_frames_per_move
 @l2:		txa
+		sec
+		sbc	starflipcur
 		ror	A
 		ror	A
 		ror	A
@@ -956,9 +1086,28 @@ move_stars_and_bullets:
 		inx
 		dec	zp_tmp
 		bne	@l
+		rts
+
+;  _ _  _    _   |_    || _ _|_ _
+; | | |(_)\/(/_  |_)|_|||(/_ | _\
 
 
-		ldx	#.sizeof(bullet)*(BULLET_COUNT-1)
+move_bullets:
+
+		; copy current values to next
+		ldx	#.sizeof(bullet)*(BULLET_COUNT)
+		stx	zp_tmp
+		ldx	bulletflipcur
+		ldy	bulletflipnxt
+@clp:		lda	bullets,X
+		sta	bullets,Y
+		dec	zp_tmp
+		bne	@clp
+
+		ldx	#BULLET_COUNT
+		stx	zp_tmp5
+
+		ldx	bulletflipnxt
 @blp:		lda	bullets + bullet::status,X
 		bmi	@sb
 	
@@ -1012,17 +1161,22 @@ move_stars_and_bullets:
 		adc	zp_frames_per_movex3
 		bcs	@end
 		sta	bullets + bullet::px,X
-@sb:		dex
-		dex
-		dex
-		bpl	@blp
-		bmi	@findlasertits
+@sb:		inx
+		inx
+		inx
+		dec	zp_tmp5
+		bne	@blp
+		rts
 @end:		lda	#$FF
 		sta	bullets + bullet::status,X
-		bne	@sb
+		bne	@sb				; always!
+
+;   _ _  _  _| _  _  | _  _ _  _  _|_._|_ _
+;  | (/_| |(_|(/_|   |(_|_\(/_|    | | | _\
+
 
 @rts:		rts
-@findlasertits:
+render_laser_tits:
 		lda	zp_cycle
 		and	#$F
 		cmp	#0
@@ -1071,7 +1225,7 @@ move_stars_and_bullets:
 		sta	firing_tits,Y
 		iny
 		jmp	@nxt
-
+@rts:		rts
 
 
 ;;;;;;;;;;;;;;; check keys ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1243,11 +1397,15 @@ renderBCD2:	pha
 
 
 		.data
+enemies:	.byte	$10, $20, $0, $0
+		.byte	$20, $20, $0, $1
+		.byte	$30, $20, $0, $2
 
 blockx16x16:	.incbin "../build/src/blocks16x16.bin"
 playersprites:	.incbin "../build/src/player.bin"
 		.align	8		
 chronospipe:	.incbin "../build/src/chronospipe.bin"
+enemysprites:	.incbin "../build/src/enemies.bin"
 scoreboard:	.res	8*8*2				; bitmap for score
 NUMFONT:	.incbin "../build/src/numfont.f2"
 
@@ -1342,12 +1500,14 @@ stars:
         .word   $62AD
         .byte   $11
         .byte   $00
+stars2:	.res	STARS_COUNT*.sizeof(star)
 bullets:
 	.repeat BULLET_COUNT, I
 	.byte	0
 	.byte	I * 8
 	.byte	$FF
 	.endrepeat
+	.res	BULLET_COUNT*.sizeof(bullet)
 
 fire_pend:	.res	1		; player fire is pending
 
