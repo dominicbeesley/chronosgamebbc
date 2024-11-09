@@ -55,6 +55,8 @@ zp_tmp2:	.res 	1		; temporary
 zp_tmp3:	.res 	1		; temporary
 zp_tmp4:	.res 	1		; temporary
 zp_tmp5:	.res 	1		; temporary
+zp_tmp6:	.res 	1		; temporary
+zp_tmp7:	.res 	1		; temporary
 zp_dest_ptr:	.res 	2		; current blit destination
 zp_tiledst_ptr:	.res 	2		; current tile destination in the tile column
 zp_src_ptr:	.res	2		; current tile source pointer
@@ -234,11 +236,10 @@ tblKeys:		.byte	$68	; down	?
 ;  | | |(_||| |__|(_)(_)|_)
 ;                       |
 
+	DEBUG_STRIPE	$000
 main_loop:
 		; At this point we should be somewhere at the end of the bottom half of the screen
 		; we can do computationally intensive stuff here
-
-	DEBUG_STRIPE	$003
 
 		jsr	check_keys			; check keyboard
 		jsr	move_player0			; calculate player moves (but don't store yet)
@@ -248,9 +249,7 @@ main_loop:
 		;;; TODO - there's loads of spare time here for sound effects and other
 		;;; stuff!!!
 
-	DEBUG_STRIPE	$000
 		jsr	wait_midframe			; wait for middle of frame i.e. end of play field
-	DEBUG_STRIPE	$333
 
 		ldx	zp_cycle
 		inx
@@ -270,10 +269,10 @@ main_loop:
 		and	#3
 		sta	zp_scroll_offs
 
-	DEBUG_STRIPE	$033
 		jsr	render_stars_and_bullets	; NULA: we always UN-render stars and bullets here
 	DEBUG_STRIPE	$333
 		jsr	render_player			; NULA: we always UN-render the player with the relevant offset
+	DEBUG_STRIPE	$000
 @nonula:
 
 		lda	zp_cycle
@@ -284,10 +283,10 @@ main_loop:
 
 		lda	have_nula
 		bne	@s
-	DEBUG_STRIPE	$033		
 		jsr	render_stars_and_bullets	; NON-NULA UN-render stars and bullets (non-NULA)
 	DEBUG_STRIPE	$333
 		jsr	render_player			; NON-NULA UN render the player with no offset
+	DEBUG_STRIPE	$000
 @s:		jsr	scroll				; perform the 1 byte shift hardware scroll
 
 		; update anime counters
@@ -306,11 +305,8 @@ main_loop:
 
 		; every 16th frame do the move to the next tiles column
 
-		DEBUG_STRIPE	$FFF
 		jsr	next_tiles_column		; move to next tiles column
-		DEBUG_STRIPE	$0F3
 		jsr	check_and_fire			; check for fire TODO: move to free time slot above - need to mark pending fires to avoid pre-rendering
-		DEBUG_STRIPE	$033
 		jmp	@notmoretiles
 @nottiles:	and	#1
 		beq	@notmoretiles
@@ -321,9 +317,6 @@ main_loop:
 		beq	@nos
 
 		; stars to be updated
-
-		DEBUG_STRIPE	$F0F
-
 		jsr	move_laser_tits
 
 		; update to use new stars and bullets
@@ -351,10 +344,11 @@ main_loop:
 		sta	zp_scroll_offs
 
 
-		DEBUG_STRIPE	$033
 		jsr	render_stars_and_bullets	; render the new stars
-		DEBUG_STRIPE	$333
-@sss:		jsr	render_player			; render the ship (with offset of 0 if non-nula)
+		
+@sss:		DEBUG_STRIPE	$333
+		jsr	render_player			; render the ship (with offset of 0 if non-nula)
+		DEBUG_STRIPE	$000
 @nos:
 		inc	zp_cycle
 
@@ -803,14 +797,16 @@ render_player:	lda	player_x
 		ldy	player_y
 		lda	#8
 		sta	zp_tmp5
-
-		lda	#<playersprites
-		sta	zp_src_ptr
-		
-
-		lda	zp_anime_ctr
-		ror	A
-
+;;
+;;		lda	zp_anime_ctr
+;;		ror	A		;C
+;;		ror	A		;7
+;;		ror	A		;6
+;;		and	#$40
+		lda	#0
+		clc
+		adc	#<playersprites
+		sta	zp_src_ptr		
 		lda	#>playersprites
 		adc	#0
 		sta	zp_src_ptr+1
@@ -828,24 +824,15 @@ render_player_int:
 
 
 		lda	zp_tmp2			; get X position of ship
-		clc
 		and	#3			
-		ror	A
-		ror	A
-		ror	A			; select one 4 to render for shift
-
-		adc	zp_src_ptr
-		sta	zp_src_ptr
-		sta	zp_tmp3
-		lda	zp_src_ptr+1
-		adc	#0
-		sta	zp_src_ptr+1
-		sta	zp_tmp4
-
+		sta	zp_tmp6			; store amount to shift by in zp_tmp6
+		lda	#4
+		sec
+		sbc	zp_tmp6
+		sta	zp_tmp7
 
 		lda	zp_src_ptr
 		sta	zp_tmp3
-
 		lda	zp_src_ptr+1
 		sta	zp_tmp4
 
@@ -891,14 +878,58 @@ render_player_int:
 
 
 @render_row:	sta	zp_tmp
-@cloop:		ldy	zp_tmp2
+@cloop:		
+		ldy	zp_tmp2
+
+		ldx	zp_tmp6
+		bne	@ror
+
 @rloop:		lda	(zp_dest_ptr),Y
 		eor	(zp_src_ptr),Y
 		sta	(zp_dest_ptr),Y
 		dey	
 		bpl	@rloop
+		bmi	@sk
 
+@ror:		ldx	zp_tmp6
+		; we need to add an X shift
+		lda	(zp_src_ptr),Y	
+@shlp:		lsr	A
+		dex
+		bne	@shlp
+		ldx	zp_tmp6
+		and	maskx_first,X
+		eor	(zp_dest_ptr),Y
+		sta	(zp_dest_ptr),Y
+
+		tya
+		pha
+
+		lda	(zp_src_ptr),Y
+		pha
+		tya
 		clc
+		adc	#8
+		tay
+		pla
+
+		ldx	zp_tmp7
+@shlp2:		asl	A
+		dex	
+		bne	@shlp2
+		ldx	zp_tmp7
+		and	maskx_second,X
+		eor	(zp_dest_ptr),Y
+		sta	(zp_dest_ptr),Y
+
+		pla
+		tay
+
+		dey
+		bpl	@ror
+		
+
+@sk:		clc
 		lda	zp_src_ptr
 		adc	#8
 		sta	zp_src_ptr
@@ -921,7 +952,15 @@ render_player_int:
 
 @nomore:	rts
 
-
+maskx_first:	.byte	%11111111
+		.byte	%01110111
+		.byte	%00110011
+		.byte	%00010001
+maskx_second:	.byte	%00000000
+		.byte	%11101110
+		.byte	%11001100
+		.byte	%10001000		
+		
 ;------------------------------------------------------------------
 ;  _ _  _  _| _  _   __|_ _  _ _   _  _  _|  |_    || _ _|_ _
 ; | (/_| |(_|(/_| ___\ | (_|| _\__(_|| |(_|__|_)|_|||(/_ | _\
