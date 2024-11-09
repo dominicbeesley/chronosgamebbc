@@ -45,7 +45,7 @@ ENEMIES_COUNT	:= 3
 		
 		.export		playfield_top_crtc
 		.export 	have_nula
-		.exportzp	zp_cycle
+		.exportzp	zp_next_cycle
 		.export		chronospipe
 
 
@@ -61,6 +61,7 @@ zp_src_ptr:	.res	2		; current tile source pointer
 zp_map_ptr:	.res	2		; pointer into map data
 zp_map_rle:	.res	1		; if <>0 then repeat this many tile=7F's
 zp_cycle:	.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new tiles every 16
+zp_next_cycle:	.res	1		; next value of above - for use in irq handler
 
 zp_frames_per_move:
 		.res	1		; used to multiply speed of stars/player
@@ -236,7 +237,7 @@ main_loop:
 		; At this point we should be somewhere at the end of the bottom half of the screen
 		; we can do computationally intensive stuff here
 
-	DEBUG_STRIPE	$FFF
+	DEBUG_STRIPE	$003
 
 		jsr	check_keys			; check keyboard
 		jsr	move_player0			; calculate player moves (but don't store yet)
@@ -246,9 +247,14 @@ main_loop:
 		;;; TODO - there's loads of spare time here for sound effects and other
 		;;; stuff!!!
 
-	DEBUG_STRIPE	$00F
+	DEBUG_STRIPE	$000
 		jsr	wait_midframe			; wait for middle of frame i.e. end of play field
 	DEBUG_STRIPE	$333
+
+		ldx	zp_cycle
+		inx
+		stx	zp_next_cycle			; we set this early in case the code below overruns the point
+							; where the IRQ handler will pick it up
 
 		lda	#0
 		sta	stars_rendered			; indicate stars not rendered
@@ -311,7 +317,7 @@ main_loop:
 
 		DEBUG_STRIPE	$F0F
 
-		jsr	render_laser_tits
+		jsr	move_laser_tits
 
 		; update to use new stars and bullets
 		lda	starflipcur
@@ -1171,12 +1177,17 @@ move_bullets:
 		sta	bullets + bullet::status,X
 		bne	@sb				; always!
 
-;   _ _  _  _| _  _  | _  _ _  _  _|_._|_ _
-;  | (/_| |(_|(/_|   |(_|_\(/_|    | | | _\
-
+;------------------------------------------------------------------
+;  _ _  _    _   | _  _ _  _  _|_._|_ _
+; | | |(_)\/(/___|(_|_\(/_| __ | | | _\
+; 
+;------------------------------------------------------------------
+; scan through the current map and look for tits that are firing
+; and set up in firing_tits memory area ready for display in 
+; render_stars_and_bullets
 
 @rts:		rts
-render_laser_tits:
+move_laser_tits:
 		lda	zp_cycle
 		and	#$F
 		cmp	#0
@@ -1228,7 +1239,14 @@ render_laser_tits:
 @rts:		rts
 
 
-;;;;;;;;;;;;;;; check keys ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;------------------------------------------------------------------
+;  _|_  _  _|   |  _    _
+; (_| |(/_(_|<__|<(/_\/_\
+;                    /
+;------------------------------------------------------------------
+; scan the keyboard for pressed keys and store in player_keys
+;
+
 
 check_keys:	ldx	#NKEYS-1
 @l:		lda	tblKeys,X
@@ -1239,6 +1257,15 @@ check_keys:	ldx	#NKEYS-1
 		dex
 		bpl	@l
 		rts
+
+;------------------------------------------------------------------
+;  _ _  _    _    _ | _    _  _/X
+; | | |(_)\/(/___|_)|(_|\/(/_| X/
+;                |      /
+;------------------------------------------------------------------
+;
+; set up new player position in next_* and fire_pend this happens
+; during the display period the actual move occurs during rendering
 
 move_player0:	lda	player_x
 		sta	next_player_x
@@ -1303,6 +1330,31 @@ move_player0:	lda	player_x
 
 		rts
 
+;------------------------------------------------------------------
+; 
+;  _ _  _    _    _ | _    _  _'|
+; | | |(_)\/(/___|_)|(_|\/(/_| .|.
+;                |      /
+;------------------------------------------------------------------
+; 
+; update the player position variables
+
+
+move_player1:	lda	next_player_x
+		sta	player_x
+		lda	next_player_y
+		sta	player_y
+		rts
+
+;------------------------------------------------------------------
+;  _|_  _  _|    _  _  _|   |`. _ _
+; (_| |(/_(_|<__(_|| |(_|__~|~|| (/_
+; 
+;------------------------------------------------------------------
+;
+; check for a pending fire and set up a bullet entry if one is free
+;
+
 check_and_fire:
 		lda	fire_pend
 		beq	@rts
@@ -1333,11 +1385,6 @@ check_and_fire:
 
 @rts:		rts
 
-move_player1:	lda	next_player_x
-		sta	player_x
-		lda	next_player_y
-		sta	player_y
-		rts
 
 ;;;;; scores
 add_A_score:	php

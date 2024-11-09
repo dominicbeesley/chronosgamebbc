@@ -311,7 +311,7 @@ my_irq1:	cld				; ensure decimal mode cleared
 		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
 		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
 
-		; no sub-scroll in log area, this hopefully in the blanking period
+		; no sub-scroll in logo area, this hopefully in the blanking period
 		lda	#$20
 		sta	SHEILA_NULA_CTLAUX
 
@@ -407,7 +407,7 @@ my_irq1:	cld				; ensure decimal mode cleared
 		lda	have_nula
 		beq	@nonula
 		; apply nula scroll offset
-		lda	zp_cycle
+		lda	zp_next_cycle
 		sec
 		sbc	#1		
 		and	#3
