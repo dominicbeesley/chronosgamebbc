@@ -62,6 +62,7 @@ zp_map_ptr:	.res	2		; pointer into map data
 zp_map_rle:	.res	1		; if <>0 then repeat this many tile=7F's
 zp_cycle:	.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new tiles every 16
 zp_next_cycle:	.res	1		; next value of above - for use in irq handler
+zp_scroll_offs: .res	1		; the scroll offset to apply when rendering (or un-rendering)
 
 zp_frames_per_move:
 		.res	1		; used to multiply speed of stars/player
@@ -221,7 +222,7 @@ tblKeys:		.byte	$68	; down	?
 		dex
 		txa
 		eor	#$FF
-		tax
+		sta	zp_scroll_offs
 		jsr	render_player
 
 		lda	have_nula
@@ -258,13 +259,20 @@ main_loop:
 
 		lda	#0
 		sta	stars_rendered			; indicate stars not rendered
+		sta	zp_scroll_offs			; assume no offset
 		lda	have_nula
 		beq	@nonula				; skip forwards if no nula
+
+		; we are in nula mode set the scroll offset to use when un-rendering
+		ldx	zp_cycle
+		dex
+		txa
+		and	#3
+		sta	zp_scroll_offs
+
 	DEBUG_STRIPE	$033
 		jsr	render_stars_and_bullets	; NULA: we always UN-render stars and bullets here
 	DEBUG_STRIPE	$333
-		ldx	zp_cycle
-		dex
 		jsr	render_player			; NULA: we always UN-render the player with the relevant offset
 @nonula:
 
@@ -279,7 +287,6 @@ main_loop:
 	DEBUG_STRIPE	$033		
 		jsr	render_stars_and_bullets	; NON-NULA UN-render stars and bullets (non-NULA)
 	DEBUG_STRIPE	$333
-		ldx	#0
 		jsr	render_player			; NON-NULA UN render the player with no offset
 @s:		jsr	scroll				; perform the 1 byte shift hardware scroll
 
@@ -335,13 +342,18 @@ main_loop:
 		sta	bulletflipnxt
 
 		jsr	move_player1			; actually update player position
-		DEBUG_STRIPE	$033
-		jsr	render_stars_and_bullets	; render the new stars
-		DEBUG_STRIPE	$333
+
 		ldx	#0
 		lda	have_nula
 		beq	@sss
-		ldx	zp_cycle
+		lda	zp_cycle
+		and	#3
+		sta	zp_scroll_offs
+
+
+		DEBUG_STRIPE	$033
+		jsr	render_stars_and_bullets	; render the new stars
+		DEBUG_STRIPE	$333
 @sss:		jsr	render_player			; render the ship (with offset of 0 if non-nula)
 @nos:
 		inc	zp_cycle
@@ -753,53 +765,88 @@ calc_screen_xy:
 		sbc	#>PLAYFIELD_SIZE
 @s2:		sta	zp_dest_ptr+1
 		rts
+
+
 		
 
-	; on entry X contains the pixel offset to add (due to sub-byte scrolling for NULA or not)
+;------------------------------------------------------------------
+;  _ _  _  _| _  _   _  _  _  _ _
+; | (/_| |(_|(/_| __(/_| |(/_| | |\/
+;                                 /
+;------------------------------------------------------------------
+; on entry X contains the pixel offset to add (due to sub-byte scrolling for NULA or not)
 render_enemy:
-		txa
-		and	#3
-		;eor	#3
-		clc
 		ldx	zp_cur_enemy
-		adc	enemies+enemy::px,X
-		sta	zp_tmp2
+		lda	enemies+enemy::px,X
 		tax
 
 		ldy	enemies+enemy::py,X
-		lda	#4
+
+		lda	#4				; width of gfx
 		sta	zp_tmp5
 		bne	render_player_int
 
-	; on entry X contains the pixel offset to add (due to sub-byte scrolling for NULA or not)
-render_player:	txa
-		and	#3
-		;eor	#3
-		clc
-		adc	player_x
-		sta	zp_tmp2
+;------------------------------------------------------------------
+;  _ _  _  _| _  _   _ | _    _  _
+; | (/_| |(_|(/_| __|_)|(_|\/(/_|
+;                   |      /
+;------------------------------------------------------------------
+;
+; on entry X contains the pixel offset to add (due to sub-byte 
+; scrolling for NULA or not)
+; player_x, player_y are the positions of the player on the playfield
+;
+
+render_player:	lda	player_x
 		tax
 
 		ldy	player_y
 		lda	#8
 		sta	zp_tmp5
-render_player_int:
-		jsr	calc_screen_xy
 
-		; 
-		clc
-		lda	zp_tmp2
-		and	#3
-		ror	A
-		ror	A
-		ror	A
-
-		adc	#<playersprites
+		lda	#<playersprites
 		sta	zp_src_ptr
-		sta	zp_tmp3
+		
+
+		lda	zp_anime_ctr
+		ror	A
+
 		lda	#>playersprites
 		adc	#0
 		sta	zp_src_ptr+1
+
+
+render_player_int:
+
+		txa
+		clc
+		adc	zp_scroll_offs
+		sta	zp_tmp2
+		tax
+
+		jsr	calc_screen_xy
+
+
+		lda	zp_tmp2			; get X position of ship
+		clc
+		and	#3			
+		ror	A
+		ror	A
+		ror	A			; select one 4 to render for shift
+
+		adc	zp_src_ptr
+		sta	zp_src_ptr
+		sta	zp_tmp3
+		lda	zp_src_ptr+1
+		adc	#0
+		sta	zp_src_ptr+1
+		sta	zp_tmp4
+
+
+		lda	zp_src_ptr
+		sta	zp_tmp3
+
+		lda	zp_src_ptr+1
 		sta	zp_tmp4
 
 		; draw top char row of ship
@@ -856,7 +903,7 @@ render_player_int:
 		adc	#8
 		sta	zp_src_ptr
 		bcc	@s2
-		inc	zp_src_ptr+1		; TODO place player sprite to avoid this?
+		inc	zp_src_ptr+1		
 @s2:
 		clc
 		lda	zp_dest_ptr
@@ -874,7 +921,13 @@ render_player_int:
 
 @nomore:	rts
 
-		
+
+;------------------------------------------------------------------
+;  _ _  _  _| _  _   __|_ _  _ _   _  _  _|  |_    || _ _|_ _
+; | (/_| |(_|(/_| ___\ | (_|| _\__(_|| |(_|__|_)|_|||(/_ | _\
+; 		
+;------------------------------------------------------------------
+;
 
 
 render_stars_and_bullets:	
@@ -903,7 +956,6 @@ render_stars_and_bullets:
 		beq	@noff
 		lda	zp_cycle
 		and	#3
-		eor	#3
 @noff:		sta	zp_tmp5
 
 		ldx	#BULLET_COUNT
@@ -1023,8 +1075,21 @@ render_stars_and_bullets:
 
 		; render enemies
 
+		ldx	#0		
+@elp:		stx	zp_cur_enemy
+		lda	enemies+enemy::status,X		; check status
+		bmi	@esk				; if -ve then is inactive
 
+		ldx	zp_tmp5				; get scroll offset calculated above
+;;		jsr	render_enemy
 
+@esk:		ldx	zp_cur_enemy
+		inx
+		inx
+		inx
+		inx
+		cpx	#ENEMIES_COUNT*.sizeof(enemy)
+		bcc	@elp
 
 
 		lda	#$FF
@@ -1034,10 +1099,11 @@ render_stars_and_bullets:
 
 		rts
 
-
+;------------------------------------------------------------------
 ;   _ _  _    _    __|_ _  _ _
 ;  | | |(_)\/(/_  _\ | (_|| _\
-
+;------------------------------------------------------------------
+;
 
 move_stars:	
 		; copy to next area
@@ -1094,9 +1160,11 @@ move_stars:
 		bne	@l
 		rts
 
+;------------------------------------------------------------------
 ;  _ _  _    _   |_    || _ _|_ _
 ; | | |(_)\/(/_  |_)|_|||(/_ | _\
-
+;------------------------------------------------------------------
+;
 
 move_bullets:
 

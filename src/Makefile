@@ -115,6 +115,7 @@ clean:
 	-rm $(BUILD)/blocks16x16.bin
 	-rm $(BUILD)/player.bin
 	-rm $(BUILD)/chronospipe.bin
+	-rm $(BUILD)/enemies.bin
 	-rm $(BUILD)/numfont.f1
 	-rm $(BUILD)/numfont.f2
 	-rm $(BUILD)/map.bin
