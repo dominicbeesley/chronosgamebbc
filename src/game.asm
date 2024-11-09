@@ -58,6 +58,7 @@ zp_tmp5:	.res 	1		; temporary
 zp_tmp6:	.res 	1		; temporary
 zp_tmp7:	.res 	1		; temporary
 zp_dest_ptr:	.res 	2		; current blit destination
+zp_dest_ptr8:	.res 	2		; current blit destination plus 8
 zp_tiledst_ptr:	.res 	2		; current tile destination in the tile column
 zp_src_ptr:	.res	2		; current tile source pointer
 zp_map_ptr:	.res	2		; pointer into map data
@@ -780,6 +781,19 @@ render_enemy:
 		sta	zp_tmp5
 		bne	render_player_int
 
+calc_dest_8:
+		clc
+		lda	zp_dest_ptr
+		adc	#8
+		sta	zp_dest_ptr8
+		lda	zp_dest_ptr+1
+		adc	#0
+		bpl	@s3
+		sec
+		sbc	#>PLAYFIELD_SIZE
+@s3:		sta	zp_dest_ptr8+1
+		rts
+
 ;------------------------------------------------------------------
 ;  _ _  _  _| _  _   _ | _    _  _
 ; | (/_| |(_|(/_| __|_)|(_|\/(/_|
@@ -822,6 +836,7 @@ render_player_int:
 
 		jsr	calc_screen_xy
 
+		jsr	calc_dest_8
 
 		lda	zp_tmp2			; get X position of ship
 		and	#3			
@@ -844,7 +859,6 @@ render_player_int:
 		tay
 		sty	zp_tmp2
 
-		lda	zp_tmp5
 		jsr	@render_row
 
 		; skip rows in source we've already plotted
@@ -874,15 +888,17 @@ render_player_int:
 		sec
 		sbc	#>PLAYFIELD_SIZE
 @sw:		sta	zp_dest_ptr+1
-		lda	zp_tmp5
+		jsr	calc_dest_8
 
-
-@render_row:	sta	zp_tmp
+		
+@render_row:	lda	zp_tmp5				; width
+		sta	zp_tmp
 @cloop:		
+		
 		ldy	zp_tmp2
 
 		ldx	zp_tmp6
-		bne	@ror
+		bne	@shifted
 
 @rloop:		lda	(zp_dest_ptr),Y
 		eor	(zp_src_ptr),Y
@@ -890,6 +906,10 @@ render_player_int:
 		dey	
 		bpl	@rloop
 		bmi	@sk
+
+@nomore:	rts
+
+@shifted:	
 
 @ror:		ldx	zp_tmp6
 		; we need to add an X shift
@@ -902,31 +922,21 @@ render_player_int:
 		eor	(zp_dest_ptr),Y
 		sta	(zp_dest_ptr),Y
 
-		tya
-		pha
-
+@rol:
 		lda	(zp_src_ptr),Y
-		pha
-		tya
-		clc
-		adc	#8
-		tay
-		pla
-
 		ldx	zp_tmp7
 @shlp2:		asl	A
 		dex	
 		bne	@shlp2
 		ldx	zp_tmp7
 		and	maskx_second,X
-		eor	(zp_dest_ptr),Y
-		sta	(zp_dest_ptr),Y
+		eor	(zp_dest_ptr8),Y
+		sta	(zp_dest_ptr8),Y
 
-		pla
-		tay
 
 		dey
-		bpl	@ror
+		bpl	@shifted
+
 		
 
 @sk:		clc
@@ -936,21 +946,28 @@ render_player_int:
 		bcc	@s2
 		inc	zp_src_ptr+1		
 @s2:
-		clc
-		lda	zp_dest_ptr
-		adc	#8
+
+		lda	zp_dest_ptr8
 		sta	zp_dest_ptr
-		lda	zp_dest_ptr+1
+		lda	zp_dest_ptr8+1
+		sta	zp_dest_ptr+1
+
+		clc
+		lda	zp_dest_ptr8
+		adc	#8
+		sta	zp_dest_ptr8
+		lda	zp_dest_ptr8+1
 		adc	#0
-		bpl	@s3
+		bpl	@s33
 		sec
 		sbc	#>PLAYFIELD_SIZE
-@s3:		sta	zp_dest_ptr+1
+@s33:		sta	zp_dest_ptr8+1
+
 
 		dec	zp_tmp
 		bne	@cloop
 
-@nomore:	rts
+		rts
 
 maskx_first:	.byte	%11111111
 		.byte	%01110111
