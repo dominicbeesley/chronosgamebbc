@@ -8,6 +8,18 @@
 		.export render_enemy
 		.export render_player
 
+; private zero page
+
+		.zeropage
+zp_width:	.res	1
+zp_width_ctr:	.res	1
+zp_shiftX:	.res	1	; no of ror's to apply
+zp_shiftXnxt:	.res	1	; no of rol's to apply to next cell's data
+zp_src_ptr_save:.res	2
+zp_char_row:	.res	1
+		.data
+
+		.code
 
 ;------------------------------------------------------------------
 ;  _ _  _  _| _  _   _  _  _  _ _
@@ -23,7 +35,7 @@ render_enemy:
 		ldy	enemies+enemy::py,X
 
 		lda	#4				; width of gfx
-		sta	zp_tmp5
+		sta	zp_width
 		bne	render_player_int
 
 calc_dest_8:
@@ -55,7 +67,7 @@ render_player:	lda	player_x
 
 		ldy	player_y
 		lda	#8
-		sta	zp_tmp5
+		sta	zp_width
 ;;
 ;;		lda	zp_anime_ctr
 ;;		ror	A		;C
@@ -76,25 +88,25 @@ render_player_int:
 		txa
 		clc
 		adc	zp_scroll_offs
-		sta	zp_tmp2
+		pha
 		tax
 
 		jsr	calc_screen_xy
 
 		jsr	calc_dest_8
 
-		lda	zp_tmp2			; get X position of ship
+		pla				; get back X position of ship
 		and	#3			
-		sta	zp_tmp6			; store amount to shift by in zp_tmp6
+		sta	zp_shiftX		; store amount to shift by in zp_shiftX
 		lda	#4
 		sec
-		sbc	zp_tmp6
-		sta	zp_tmp7
+		sbc	zp_shiftX
+		sta	zp_shiftXnxt
 
 		lda	zp_src_ptr
-		sta	zp_tmp3
+		sta	zp_src_ptr_save
 		lda	zp_src_ptr+1
-		sta	zp_tmp4
+		sta	zp_src_ptr_save+1
 
 		; draw top char row of ship
 
@@ -102,25 +114,25 @@ render_player_int:
 		and	#7
 		eor	#7
 		tay
-		sty	zp_tmp2
+		sty	zp_char_row
 
 		jsr	@render_row
 
 		; skip rows in source we've already plotted
 		sec
-		lda	zp_tmp3
-		adc	zp_tmp2
+		lda	zp_src_ptr_save
+		adc	zp_char_row
 		sta	zp_src_ptr
-		lda	zp_tmp4
+		lda	zp_src_ptr_save+1
 		adc	#0
 		sta	zp_src_ptr+1
 
 
-		lda	zp_tmp2
+		lda	zp_char_row
 		eor	#7
-		sta	zp_tmp2
+		sta	zp_char_row
 		beq	@nomore
-		dec	zp_tmp2
+		dec	zp_char_row
 
 		; move to next char row
 		lda	zp_dest_ptr
@@ -136,13 +148,13 @@ render_player_int:
 		jsr	calc_dest_8
 
 		
-@render_row:	lda	zp_tmp5				; width
-		sta	zp_tmp
+@render_row:	lda	zp_width				; width
+		sta	zp_width_ctr
 @cloop:		
 		
-		ldy	zp_tmp2
+		ldy	zp_char_row
 
-		ldx	zp_tmp6
+		ldx	zp_shiftX
 		bne	@shifted
 
 @rloop:		lda	(zp_dest_ptr),Y
@@ -156,24 +168,24 @@ render_player_int:
 
 @shifted:	
 
-@ror:		ldx	zp_tmp6
+@ror:		ldx	zp_shiftX
 		; we need to add an X shift
 		lda	(zp_src_ptr),Y	
 @shlp:		lsr	A
 		dex
 		bne	@shlp
-		ldx	zp_tmp6
+		ldx	zp_shiftX
 		and	maskx_first,X
 		eor	(zp_dest_ptr),Y
 		sta	(zp_dest_ptr),Y
 
 @rol:
 		lda	(zp_src_ptr),Y
-		ldx	zp_tmp7
+		ldx	zp_shiftXnxt
 @shlp2:		asl	A
 		dex	
 		bne	@shlp2
-		ldx	zp_tmp7
+		ldx	zp_shiftXnxt
 		and	maskx_second,X
 		eor	(zp_dest_ptr8),Y
 		sta	(zp_dest_ptr8),Y
@@ -209,7 +221,7 @@ render_player_int:
 @s33:		sta	zp_dest_ptr8+1
 
 
-		dec	zp_tmp
+		dec	zp_width_ctr
 		bne	@cloop
 
 		rts
