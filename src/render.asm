@@ -7,6 +7,9 @@
 
 		.export render_enemy
 		.export render_player
+.ifdef DEBUG
+		.export render_exit
+.endif
 
 ; private zero page
 
@@ -131,7 +134,7 @@ render_player_int:
 		lda	zp_char_row
 		eor	#7
 		sta	zp_char_row
-		beq	@nomore
+		beq	@render_exit
 		dec	zp_char_row
 
 		; move to next char row
@@ -147,6 +150,10 @@ render_player_int:
 @sw:		sta	zp_dest_ptr+1
 		jsr	calc_dest_8
 
+.ifdef DEBUG
+		jsr	@render_row			; instrumentation - fall through normally
+@render_exit:	rts					
+.endif
 		
 @render_row:	lda	zp_width				; width
 		sta	zp_width_ctr
@@ -163,8 +170,6 @@ render_player_int:
 		dey	
 		bpl	@rloop
 		bmi	@sk
-
-@nomore:	rts
 
 @shifted:	
 
@@ -204,16 +209,13 @@ render_player_int:
 		inc	zp_src_ptr+1		
 @s2:
 
-		lda	zp_dest_ptr8
-		sta	zp_dest_ptr
-		lda	zp_dest_ptr8+1
-		sta	zp_dest_ptr+1
-
 		clc
 		lda	zp_dest_ptr8
+		sta	zp_dest_ptr
 		adc	#8
 		sta	zp_dest_ptr8
 		lda	zp_dest_ptr8+1
+		sta	zp_dest_ptr+1
 		adc	#0
 		bpl	@s33
 		sec
@@ -226,6 +228,9 @@ render_player_int:
 
 		rts
 
+.ifdef DEBUG
+render_exit = @render_exit
+.endif
 maskx_first:	.byte	%11111111
 		.byte	%01110111
 		.byte	%00110011
@@ -234,3 +239,5 @@ maskx_second:	.byte	%00000000
 		.byte	%11101110
 		.byte	%11001100
 		.byte	%10001000		
+
+
