@@ -65,7 +65,6 @@ KEYS_FIRE =		$10
 	.importzp	zp_tmp6
 	.importzp	zp_tmp7
 	.importzp	zp_dest_ptr
-	.importzp	zp_dest_ptr8
 	.importzp	zp_tiledst_ptr
 	.importzp	zp_src_ptr
 	.importzp	zp_map_ptr

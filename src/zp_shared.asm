@@ -8,7 +8,6 @@
 			.exportzp zp_tmp6
 			.exportzp zp_tmp7
 			.exportzp zp_dest_ptr
-			.exportzp zp_dest_ptr8
 			.exportzp zp_tiledst_ptr
 			.exportzp zp_src_ptr
 			.exportzp zp_map_ptr
@@ -36,7 +35,6 @@ zp_tmp5:		.res 	1		; temporary
 zp_tmp6:		.res 	1		; temporary
 zp_tmp7:		.res 	1		; temporary
 zp_dest_ptr:		.res 	2		; current blit destination
-zp_dest_ptr8:		.res 	2		; current blit destination plus 8
 zp_tiledst_ptr:		.res 	2		; current tile destination in the tile column
 zp_src_ptr:		.res	2		; current tile source pointer
 zp_map_ptr:		.res	2		; pointer into map data

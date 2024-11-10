@@ -20,6 +20,12 @@ zp_shiftX:	.res	1	; no of ror's to apply
 zp_shiftXnxt:	.res	1	; no of rol's to apply to next cell's data
 zp_src_ptr_save:.res	2
 zp_char_row:	.res	1
+
+zp_dest_ptr8:	.res 	2	; current blit destination plus 8
+
+zp_mask_cur:	.res	1	; mask for current cell
+zp_mask_pre:	.res	1	; mask for prev cell
+
 		.data
 
 		.code
@@ -101,10 +107,19 @@ render_player_int:
 		pla				; get back X position of ship
 		and	#3			
 		sta	zp_shiftX		; store amount to shift by in zp_shiftX
+
+		tax
+		lda	maskx_first,X
+		sta	zp_mask_cur
+
+
 		lda	#4
 		sec
 		sbc	zp_shiftX
 		sta	zp_shiftXnxt
+		tax
+		lda	maskx_second,X
+		sta	zp_mask_pre
 
 		lda	zp_src_ptr
 		sta	zp_src_ptr_save
@@ -180,7 +195,7 @@ render_player_int:
 		dex
 		bne	@shlp
 		ldx	zp_shiftX
-		and	maskx_first,X
+		and	zp_mask_cur
 		eor	(zp_dest_ptr),Y
 		sta	(zp_dest_ptr),Y
 
@@ -191,7 +206,7 @@ render_player_int:
 		dex	
 		bne	@shlp2
 		ldx	zp_shiftXnxt
-		and	maskx_second,X
+		and	zp_mask_pre
 		eor	(zp_dest_ptr8),Y
 		sta	(zp_dest_ptr8),Y
 
@@ -231,6 +246,12 @@ render_player_int:
 .ifdef DEBUG
 render_exit = @render_exit
 .endif
+
+		.data
+render_prev:	.res	8		; used to save previous char cell for each row
+
+		.rodata
+
 maskx_first:	.byte	%11111111
 		.byte	%01110111
 		.byte	%00110011
