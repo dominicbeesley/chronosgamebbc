@@ -17,7 +17,7 @@
 zp_width:	.res	1
 zp_width_ctr:	.res	1
 zp_shiftX:	.res	1	; no of ror's to apply
-zp_shiftXnxt:	.res	1	; no of rol's to apply to next cell's data
+
 zp_src_ptr_save:.res	2
 zp_char_row:	.res	1
 
@@ -25,6 +25,9 @@ zp_dest_ptr8:	.res 	2	; current blit destination plus 8
 
 zp_mask_cur:	.res	1	; mask for current cell
 zp_mask_pre:	.res	1	; mask for prev cell
+
+zp_next_char:	.res	1
+zp_next_char2:	.res	1
 
 		.data
 
@@ -111,13 +114,6 @@ render_player_int:
 		tax
 		lda	maskx_first,X
 		sta	zp_mask_cur
-
-
-		lda	#4
-		sec
-		sbc	zp_shiftX
-		sta	zp_shiftXnxt
-		tax
 		lda	maskx_second,X
 		sta	zp_mask_pre
 
@@ -172,6 +168,17 @@ render_player_int:
 		
 @render_row:	lda	zp_width				; width
 		sta	zp_width_ctr
+
+		lda	#0
+		sta	render_prev
+		sta	render_prev+1
+		sta	render_prev+2
+		sta	render_prev+3
+		sta	render_prev+4
+		sta	render_prev+5
+		sta	render_prev+6
+		sta	render_prev+7
+
 @cloop:		
 		
 		ldy	zp_char_row
@@ -186,29 +193,27 @@ render_player_int:
 		bpl	@rloop
 		bmi	@sk
 
+
 @shifted:	
 
 @ror:		ldx	zp_shiftX
+		lda	#0
+		sta	zp_next_char		; zero next
 		; we need to add an X shift
 		lda	(zp_src_ptr),Y	
-@shlp:		lsr	A
+@shlp:		ror	A
+		ror	zp_next_char
 		dex
 		bne	@shlp
-		ldx	zp_shiftX
+		sta	zp_next_char2
 		and	zp_mask_cur
+		ora	render_prev,Y
 		eor	(zp_dest_ptr),Y
 		sta	(zp_dest_ptr),Y
-
-@rol:
-		lda	(zp_src_ptr),Y
-		ldx	zp_shiftXnxt
-@shlp2:		asl	A
-		dex	
-		bne	@shlp2
-		ldx	zp_shiftXnxt
+		lda	zp_next_char2
+		ora	zp_next_char
 		and	zp_mask_pre
-		eor	(zp_dest_ptr8),Y
-		sta	(zp_dest_ptr8),Y
+		sta	render_prev,Y
 
 
 		dey
@@ -247,7 +252,7 @@ render_player_int:
 render_exit = @render_exit
 .endif
 
-		.data
+		.zeropage
 render_prev:	.res	8		; used to save previous char cell for each row
 
 		.rodata
@@ -257,8 +262,8 @@ maskx_first:	.byte	%11111111
 		.byte	%00110011
 		.byte	%00010001
 maskx_second:	.byte	%00000000
-		.byte	%11101110
-		.byte	%11001100
 		.byte	%10001000		
+		.byte	%11001100
+		.byte	%11101110
 
 
