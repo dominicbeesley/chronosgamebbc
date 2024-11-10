@@ -3,11 +3,12 @@
 		.include "oslib.inc"
 		.include "mosrom.inc"
 		.include "debug.inc"
+		.include "chronos.inc"
 
 		.export 	init_irq
 		.export 	frame_ctr
-		.importzp	zp_cycle
-		.import 	chronospipe
+
+	
 
 
 		; wait this many cycles
