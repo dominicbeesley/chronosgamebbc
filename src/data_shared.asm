@@ -10,7 +10,7 @@
 
 	.export chronospipe
 	.export scoreboard
-	
+
 	.export playfield_top_crtc
 	.export playfield_top
 	.export new_tiles_top
@@ -102,9 +102,9 @@ player_keys:		.byte	0
 		; the following data is used for sub-screens
 
 
-enemies:	.byte	$10, $20, $0, $0
-		.byte	$20, $20, $0, $1
-		.byte	$30, $20, $0, $2
+enemies:	.byte	$30, $60, $0, $0
+		.byte	$31, $10, $0, $1
+		.byte	$32, $20, $0, $2
 
 
 

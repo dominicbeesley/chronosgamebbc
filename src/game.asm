@@ -812,6 +812,8 @@ render_stars_and_bullets:
 
 @skiptits:
 
+	DEBUG_STRIPE $055
+
 		; render enemies
 
 		ldx	#0		
@@ -820,7 +822,7 @@ render_stars_and_bullets:
 		bmi	@esk				; if -ve then is inactive
 
 		ldx	zp_tmp5				; get scroll offset calculated above
-;;		jsr	render_enemy
+		jsr	render_enemy
 
 @esk:		ldx	zp_cur_enemy
 		inx
@@ -830,6 +832,7 @@ render_stars_and_bullets:
 		cpx	#ENEMIES_COUNT*.sizeof(enemy)
 		bcc	@elp
 
+	DEBUG_STRIPE $000
 
 		lda	#$FF
 		sta	stars_rendered

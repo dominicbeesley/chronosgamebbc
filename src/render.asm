@@ -17,21 +17,24 @@
 zp_width:	.res	1
 zp_width_ctr:	.res	1
 zp_shiftX:	.res	1	; no of ror's to apply
+zp_shiftXnxt:	.res	1	; no of rol's to apply
 
 zp_src_ptr_save:.res	2
 zp_char_row:	.res	1
-
-zp_dest_ptr8:	.res 	2	; current blit destination plus 8
 
 zp_mask_cur:	.res	1	; mask for current cell
 zp_mask_pre:	.res	1	; mask for prev cell
 
 zp_next_char:	.res	1
-zp_next_char2:	.res	1
+
+zp_cur_x:	.res	1
+zp_cur_y:	.res	1
+zp_first_col:	.res	1
 
 		.data
 
 		.code
+
 
 ;------------------------------------------------------------------
 ;  _ _  _  _| _  _   _  _  _  _ _
@@ -39,29 +42,26 @@ zp_next_char2:	.res	1
 ;                                 /
 ;------------------------------------------------------------------
 ; on entry X contains the pixel offset to add (due to sub-byte scrolling for NULA or not)
-render_enemy:
+render_enemy:	; calculate enemy source address
+
+
+		LDXY	enemysprites
+		
+		stx	zp_src_ptr
+		sty	zp_src_ptr+1
+
 		ldx	zp_cur_enemy
 		lda	enemies+enemy::px,X
+		ldy	enemies+enemy::py,X
 		tax
 
-		ldy	enemies+enemy::py,X
 
 		lda	#4				; width of gfx
 		sta	zp_width
-		bne	render_player_int
+		jsr	render_player_int
 
-calc_dest_8:
-		clc
-		lda	zp_dest_ptr
-		adc	#8
-		sta	zp_dest_ptr8
-		lda	zp_dest_ptr+1
-		adc	#0
-		bpl	@s3
-		sec
-		sbc	#>PLAYFIELD_SIZE
-@s3:		sta	zp_dest_ptr8+1
 		rts
+
 
 ;------------------------------------------------------------------
 ;  _ _  _  _| _  _   _ | _    _  _
@@ -74,18 +74,16 @@ calc_dest_8:
 ; player_x, player_y are the positions of the player on the playfield
 ;
 
-render_player:	lda	player_x
-		tax
-
+render_player:	ldx	player_x
 		ldy	player_y
 		lda	#8
 		sta	zp_width
-;;
-;;		lda	zp_anime_ctr
-;;		ror	A		;C
-;;		ror	A		;7
-;;		ror	A		;6
-;;		and	#$40
+
+		lda	zp_anime_ctr
+		ror	A		;C
+		ror	A		;7
+		ror	A		;6
+		and	#$40
 		lda	#0
 		clc
 		adc	#<playersprites
@@ -100,14 +98,13 @@ render_player_int:
 		txa
 		clc
 		adc	zp_scroll_offs
-		pha
+		sta	zp_cur_x
 		tax
+		sty	zp_cur_y
 
 		jsr	calc_screen_xy
 
-		jsr	calc_dest_8
-
-		pla				; get back X position of ship
+		lda	zp_cur_x		; get back X position of ship
 		and	#3			
 		sta	zp_shiftX		; store amount to shift by in zp_shiftX
 
@@ -117,6 +114,11 @@ render_player_int:
 		lda	maskx_second,X
 		sta	zp_mask_pre
 
+		lda	#4
+		sec
+		sbc	zp_shiftX
+		sta	zp_shiftXnxt
+
 		lda	zp_src_ptr
 		sta	zp_src_ptr_save
 		lda	zp_src_ptr+1
@@ -124,7 +126,7 @@ render_player_int:
 
 		; draw top char row of ship
 
-		lda	player_y
+		lda	zp_cur_y
 		and	#7
 		eor	#7
 		tay
@@ -159,7 +161,6 @@ render_player_int:
 		sec
 		sbc	#>PLAYFIELD_SIZE
 @sw:		sta	zp_dest_ptr+1
-		jsr	calc_dest_8
 
 .ifdef DEBUG
 		jsr	@render_row			; instrumentation - fall through normally
@@ -168,16 +169,17 @@ render_player_int:
 		
 @render_row:	lda	zp_width				; width
 		sta	zp_width_ctr
+		sta	zp_first_col				; mark first column
 
-		lda	#0
-		sta	render_prev
-		sta	render_prev+1
-		sta	render_prev+2
-		sta	render_prev+3
-		sta	render_prev+4
-		sta	render_prev+5
-		sta	render_prev+6
-		sta	render_prev+7
+;;		lda	#0
+;;		sta	render_prev
+;;		sta	render_prev+1
+;;		sta	render_prev+2
+;;		sta	render_prev+3
+;;		sta	render_prev+4
+;;		sta	render_prev+5
+;;		sta	render_prev+6
+;;		sta	render_prev+7
 
 @cloop:		
 		
@@ -195,33 +197,62 @@ render_player_int:
 
 
 @shifted:	
+		lda	zp_first_col
+		beq	@rorn
+		; if this is first column we don't need to shift in previous col's data
 
-@ror:		ldx	zp_shiftX
-		lda	#0
-		sta	zp_next_char		; zero next
-		; we need to add an X shift
+@ror0:		ldx	zp_shiftX			; we need to add an X shift
 		lda	(zp_src_ptr),Y	
-@shlp:		ror	A
-		ror	zp_next_char
+@shlp0:		lsr	A
+		dex
+		bne	@shlp0
+		and	zp_mask_cur
+		eor	(zp_dest_ptr),Y
+		sta	(zp_dest_ptr),Y
+
+		; do left shift. This is actually quicker than combining with the ror above
+		; for worst case as 7*ror zp is 35 inst instead of 1 rol = 2 + loop overhead
+
+		lda	(zp_src_ptr),Y	
+		ldx	zp_shiftXnxt
+@shlp20:	asl	A
+		dex
+		bne	@shlp20
+
+		and	zp_mask_pre
+		sta	render_prev,Y
+		dey
+		bpl	@ror0
+		bmi	@sk
+
+
+@rorn:		ldx	zp_shiftX			; we need to add an X shift
+		lda	(zp_src_ptr),Y	
+@shlp:		lsr	A
 		dex
 		bne	@shlp
-		sta	zp_next_char2
 		and	zp_mask_cur
 		ora	render_prev,Y
 		eor	(zp_dest_ptr),Y
 		sta	(zp_dest_ptr),Y
-		lda	zp_next_char2
-		ora	zp_next_char
+
+		; do left shift. This is actually quicker than combining with the ror above
+		; for worst case as 7*ror zp is 35 inst instead of 1 rol = 2 + loop overhead
+
+		lda	(zp_src_ptr),Y	
+		ldx	zp_shiftXnxt
+@shlp2:		asl	A
+		dex
+		bne	@shlp2
+
 		and	zp_mask_pre
 		sta	render_prev,Y
-
-
 		dey
-		bpl	@shifted
+		bpl	@rorn
 
-		
 
-@sk:		clc
+@sk:		
+		clc
 		lda	zp_src_ptr
 		adc	#8
 		sta	zp_src_ptr
@@ -230,19 +261,18 @@ render_player_int:
 @s2:
 
 		clc
-		lda	zp_dest_ptr8
-		sta	zp_dest_ptr
+		lda	zp_dest_ptr
 		adc	#8
-		sta	zp_dest_ptr8
-		lda	zp_dest_ptr8+1
-		sta	zp_dest_ptr+1
+		sta	zp_dest_ptr
+		lda	zp_dest_ptr+1
 		adc	#0
 		bpl	@s33
 		sec
 		sbc	#>PLAYFIELD_SIZE
-@s33:		sta	zp_dest_ptr8+1
+@s33:		sta	zp_dest_ptr+1
 
-
+		lda	#0
+		sta	zp_first_col
 		dec	zp_width_ctr
 		bne	@cloop
 
