@@ -31,6 +31,8 @@ zp_cur_x:	.res	1
 zp_cur_y:	.res	1
 zp_first_col:	.res	1
 
+zp_dest_ptr_sav:.res	2
+
 		.data
 
 		.code
@@ -46,9 +48,27 @@ render_enemy:	; calculate enemy source address
 
 
 		LDXY	enemysprites
-		
+
+		lda	#0
+		sta	zp_cur_x
+
+		lda	zp_anime_ctr
+		and	#7
+
+		lsr	A
+		ror	zp_cur_x
+		lsr	A
+		ror	zp_cur_x
+
+		sta	zp_cur_y
+		txa
+		adc	zp_cur_x
+		tax
+		tya
+		adc	zp_cur_y
+
 		stx	zp_src_ptr
-		sty	zp_src_ptr+1
+		sta	zp_src_ptr+1
 
 		ldx	zp_cur_enemy
 		lda	enemies+enemy::px,X
@@ -132,6 +152,11 @@ render_player_int:
 		tay
 		sty	zp_char_row
 
+		lda	zp_dest_ptr
+		sta	zp_dest_ptr_sav
+		lda	zp_dest_ptr+1
+		sta	zp_dest_ptr_sav+1
+
 		jsr	@render_row
 
 		; skip rows in source we've already plotted
@@ -151,12 +176,12 @@ render_player_int:
 		dec	zp_char_row
 
 		; move to next char row
-		lda	zp_dest_ptr
-		adc	#<(PLAYFIELD_STRIDE-64)
+		lda	zp_dest_ptr_sav
+		adc	#<PLAYFIELD_STRIDE
 		and	#$F8				; move to first row in cell
 		sta	zp_dest_ptr
-		lda	zp_dest_ptr+1
-		adc	#>(PLAYFIELD_STRIDE-64)
+		lda	zp_dest_ptr_sav+1
+		adc	#>PLAYFIELD_STRIDE
 		bpl	@sw
 		sec
 		sbc	#>PLAYFIELD_SIZE
@@ -276,7 +301,18 @@ render_player_int:
 		dec	zp_width_ctr
 		bne	@cloop
 
-		rts
+		lda	zp_shiftX
+		beq	@r
+
+		; do final column
+		ldy	zp_char_row
+@ll:		lda	render_prev,Y
+		eor	(zp_dest_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+		bpl	@ll
+
+@r:		rts
 
 .ifdef DEBUG
 render_exit = @render_exit
