@@ -209,7 +209,7 @@ def main(argv):
 						if linear:
 							oa = (r * widtho)
 							for x in range(len(rowdata_out)):
-								odata[oa + x * 8] = rowdata_out[x]
+								odata[oa + x] = rowdata_out[x]
 						else:
 							oa = (r % 8) + (widtho * 8 * (r // 8))
 							for x in range(len(rowdata_out)):
