@@ -120,7 +120,7 @@ LOGO_V_TOT		:= SCREEN_V_TOT-PLAYFIELD_V_TOT		; goes to end of screen
 LOGO_V_SYNC		:= SCREEN_V_SYNC-PLAYFIELD_V_TOT
 	.ifdef NULA
 LOGO_H_DISP		:= 18
-LOGO_H_ADJ		:= 0					; this is used to center the logo area
+LOGO_H_ADJ		:= 9					; this is used to center the logo area
 	.else
 LOGO_H_DISP		:= 36
 LOGO_H_ADJ		:= 18					; this is used to center the logo area
@@ -316,6 +316,11 @@ my_irq1:	cld				; ensure decimal mode cleared
 		; playfield start to render should have passed so we can do this safely now
 		lda	#$30
 		sta	SHEILA_NULA_CTLAUX
+	.else
+		nop
+		nop
+		nop
+		nop
 	.endif
 
 		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
@@ -325,6 +330,11 @@ my_irq1:	cld				; ensure decimal mode cleared
 		; no sub-scroll in logo area, this hopefully in the blanking period
 		lda	#$20
 		sta	SHEILA_NULA_CTLAUX
+	.else
+		nop
+		nop
+		nop
+		nop
 	.endif
 	
 		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
@@ -421,10 +431,8 @@ my_irq1:	cld				; ensure decimal mode cleared
 		lda	zp_next_cycle
 		sec
 		sbc	#1		
-		and	#3
-		eor	#3
-		clc
-		rol	A
+		and	#7
+		eor	#7
 		ora	#$20
 		sta	SHEILA_NULA_CTLAUX
 	.endif

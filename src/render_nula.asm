@@ -8,7 +8,7 @@
 		.export render_enemy
 		.export render_player
 .ifdef DEBUG
-		.export render_exit
+		.export render_player_exit
 .endif
 
 ; private zero page
@@ -45,7 +45,7 @@ zp_dest_ptr_sav:.res	2
 ;------------------------------------------------------------------
 ; on entry X contains the pixel offset to add (due to sub-byte scrolling for NULA or not)
 render_enemy:	; calculate enemy source address
-
+		rts
 
 		LDXY	enemysprites
 
@@ -76,7 +76,7 @@ render_enemy:	; calculate enemy source address
 		tax
 
 
-		lda	#4				; width of gfx
+		lda	#2				; width of gfx
 		sta	zp_width
 		jsr	render_player_int
 
@@ -96,20 +96,26 @@ render_enemy:	; calculate enemy source address
 
 render_player:	ldx	player_x
 		ldy	player_y
-		lda	#8
+		lda	#4
 		sta	zp_width
 
-		lda	zp_anime_ctr
-		ror	A		;C
-		ror	A		;7
-		ror	A		;6
-		and	#$40
-		lda	#0
-		clc
-		adc	#<playersprites
-		sta	zp_src_ptr		
+;;		lda	zp_anime_ctr
+;;		ror	A		;C
+;;		ror	A		;7
+;;		ror	A		;6
+;;		ror	A		;5
+;;		and	#$20
+;;		lda	#0
+;;		clc
+;;		adc	#<playersprites
+;;		sta	zp_src_ptr		
+;;		lda	#>playersprites
+;;		adc	#0
+;;		sta	zp_src_ptr+1
+
+		lda	#<playersprites
+		sta	zp_src_ptr
 		lda	#>playersprites
-		adc	#0
 		sta	zp_src_ptr+1
 
 
@@ -125,7 +131,7 @@ render_player_int:
 		jsr	calc_screen_xy
 
 		lda	zp_cur_x		; get back X position of ship
-		and	#3			
+		and	#7			
 		sta	zp_shiftX		; store amount to shift by in zp_shiftX
 
 		tax
@@ -134,7 +140,7 @@ render_player_int:
 		lda	maskx_second,X
 		sta	zp_mask_pre
 
-		lda	#4
+		lda	#8
 		sec
 		sbc	zp_shiftX
 		sta	zp_shiftXnxt
@@ -315,7 +321,7 @@ render_player_int:
 @r:		rts
 
 .ifdef DEBUG
-render_exit = @render_exit
+render_player_exit = @render_exit
 .endif
 
 		.zeropage
@@ -324,12 +330,21 @@ render_prev:	.res	8		; used to save previous char cell for each row
 		.rodata
 
 maskx_first:	.byte	%11111111
-		.byte	%01110111
-		.byte	%00110011
-		.byte	%00010001
-maskx_second:	.byte	%00000000
-		.byte	%10001000		
-		.byte	%11001100
-		.byte	%11101110
+		.byte	%01111111
+		.byte	%00111111
+		.byte	%00011111
+		.byte	%00001111
+		.byte	%00000111
+		.byte	%00000011
+		.byte	%00000001
 
+maskx_second:	.byte	%00000000
+		.byte	%10000000
+		.byte	%11000000
+		.byte	%11100000
+		.byte	%11110000
+		.byte	%11111000
+		.byte	%11111100
+		.byte	%11111110
+		.byte	%11111111
 

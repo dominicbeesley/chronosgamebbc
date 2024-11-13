@@ -74,7 +74,6 @@
 
 		jsr	init_irq
 
-here:	jmp here
 
 		; init data structures
 
@@ -122,6 +121,8 @@ here:	jmp here
 
 	DEBUG_STRIPE	$000
 main_loop:
+
+
 		; At this point we should be somewhere at the end of the bottom half of the screen
 		; we can do computationally intensive stuff here
 
@@ -143,13 +144,11 @@ main_loop:
 		lda	#0
 		sta	stars_rendered			; indicate stars not rendered
 	.ifdef NULA
-		sta	zp_scroll_offs			; assume no offset
-
 		; we are in nula mode set the scroll offset to use when un-rendering
 		ldx	zp_cycle
 		dex
 		txa
-		and	#3
+		and	#7
 		sta	zp_scroll_offs
 
 		jsr	render_stars_and_bullets	; NULA: we always UN-render stars and bullets here
@@ -158,19 +157,31 @@ main_loop:
 	DEBUG_STRIPE	$000
 	.endif
 
-		lda	zp_cycle
-		and	#$03
-		bne	@not_scroll
 
-		; do scroll actions here every 4th frame
+		lda	zp_cycle
+		and	#3
+		bne	@not_anime
 
 	.ifndef NULA
+		; do scroll actions here every 4th frame
 		jsr	render_stars_and_bullets	; NON-NULA UN-render stars and bullets (non-NULA)
 	DEBUG_STRIPE	$333
 		jsr	render_player			; NON-NULA UN render the player with no offset
 	DEBUG_STRIPE	$000
 	.endif
+
+	.ifdef NULA
+		lda	zp_cycle
+		and	#7
+		bne	@not_scroll
+	.else
+		lda	zp_cycle
+		and	#3
+		bne	@not_scroll
+	.endif
+
 		jsr	scroll				; perform the 1 byte shift hardware scroll
+@not_scroll:
 
 		; update anime counters
 		inc	zp_anime_ctr
@@ -180,8 +191,8 @@ main_loop:
 		bne	@s2
 		ldx	#0
 @s2:		stx	zp_anime_ctr6
+@not_anime:
 
-@not_scroll:
 		lda	zp_cycle
 		and	#$0F
 		bne	@nottiles
@@ -221,7 +232,7 @@ main_loop:
 
 	.ifdef NULA
 		lda	zp_cycle
-		and	#3
+		and	#7
 		sta	zp_scroll_offs
 	.endif
 
@@ -641,8 +652,9 @@ calc_screen_xy:
 		lsr	A
 	.ifdef NULA
 		lsr	A
-	.endif
+	.else
 		and	#$FE
+	.endif
 
 		plp		
 
@@ -666,6 +678,12 @@ calc_screen_xy:
 
 
 render_stars_and_bullets:	
+
+		lda	#$FF
+		sta	stars_rendered
+
+		rts
+
 		; stars first
 		ldx	#STARS_COUNT
 		stx	zp_tmp
@@ -688,7 +706,7 @@ render_stars_and_bullets:
 		; scroll offset 		TODONULA
 	.ifdef NULA
 		lda	zp_cycle
-		and	#3
+		and	#7
 	.else
 		lda	#0
 	.endif
@@ -829,9 +847,6 @@ render_stars_and_bullets:
 		bcc	@elp
 
 	DEBUG_STRIPE $000
-
-		lda	#$FF
-		sta	stars_rendered
 
 
 
