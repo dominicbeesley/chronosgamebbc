@@ -96,27 +96,35 @@ CRTC_R12_ADDR   := 12
 ;38	TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
 
 
-; The re-center line between playfield and logo something like this...
-;14	|                               |            H             T
-;15	+------------+------------------+            H             T  <-USR T1 fires here
-;16	| Logo       |                               H             T
-;17	|            |                               H             T
-
 
 
 SCREEN_V_TOT		:= 39
 SCREEN_V_SYNC		:= 34
+
+	.ifdef NULA
+SCREEN_H_TOT		:= 64
+SCREEN_H_SYNC		:= 45
+	.else
 SCREEN_H_TOT		:= 128
 SCREEN_H_SYNC		:= 90
+	.endif
 
 PLAYFIELD_V_TOT		:= 16
+	.ifdef NULA
+PLAYFIELD_H_DISP	:= 32
+	.else
 PLAYFIELD_H_DISP	:= 64
+	.endif
 
 LOGO_V_TOT		:= SCREEN_V_TOT-PLAYFIELD_V_TOT		; goes to end of screen
 LOGO_V_SYNC		:= SCREEN_V_SYNC-PLAYFIELD_V_TOT
+	.ifdef NULA
+LOGO_H_DISP		:= 18
+LOGO_H_ADJ		:= 0					; this is used to center the logo area
+	.else
 LOGO_H_DISP		:= 36
-
 LOGO_H_ADJ		:= 18					; this is used to center the logo area
+	.endif
 
 
 USR_T1_V		:= 15					; char row on which USR_T1 fires
@@ -221,13 +229,14 @@ wait_PFS:
 .endif
 wait_SSS:	WAIT_N 130
 wait_SSS1:	WAIT_N 44
-
 		;jsr			;6
-wait_16:	nop			;2
+		nop			;2
 		nop			;2
 		jsr	@w		;6+6+2
 @w:		nop			;2
 		rts			;6
+
+
 
 my_irq1:	cld				; ensure decimal mode cleared
 
@@ -288,7 +297,6 @@ my_irq1:	cld				; ensure decimal mode cleared
 		jsr	wait_PFS		; this number arrived at by experimentation....
 
 
-
 		DEBUG_STRIPE	$F73
 		DEBUG_STRIPE	$000
 
@@ -303,19 +311,22 @@ my_irq1:	cld				; ensure decimal mode cleared
 		lda	#$0
 		sta	sheila_USRVIA_orb
 
+	.ifdef NULA
 		; don't blank some pixels at left hand side to hide drawing the point at which the 
 		; playfield start to render should have passed so we can do this safely now
 		lda	#$30
 		sta	SHEILA_NULA_CTLAUX
-
+	.endif
 
 		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
 		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
 
+	.ifdef NULA
 		; no sub-scroll in logo area, this hopefully in the blanking period
 		lda	#$20
 		sta	SHEILA_NULA_CTLAUX
-
+	.endif
+	
 		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
 		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
 
@@ -400,13 +411,12 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_dat
 
 
+	.ifdef NULA
 		; blank some pixels at left hand side to hide drawing
-		lda	#$38
+		lda	#$34
 		sta	SHEILA_NULA_CTLAUX
 
 
-		lda	have_nula
-		beq	@nonula
 		; apply nula scroll offset
 		lda	zp_next_cycle
 		sec
@@ -417,7 +427,7 @@ my_irq1:	cld				; ensure decimal mode cleared
 		rol	A
 		ora	#$20
 		sta	SHEILA_NULA_CTLAUX
-@nonula:		
+	.endif
 
 
 @out:		lda	zp_mos_INT_A

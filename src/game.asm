@@ -30,7 +30,11 @@
 .endif
 
 		; setup CRTC / ULA for our special small mode for playfield
-		lda	#$D8			; mode 1 : 7=%10= mo.1 cursor, 4:1=20k, 3:2 = 40 chars, 1=0 no ttx, 0=0 no flash
+	.ifdef NULA
+		lda	#%10001000		; mode 4 : 7..5:100 mo.4 cursor, 4:0=10k, 3:10 = 40 chars, 1=0 no ttx, 0=0 no flash
+	.else
+		lda	#%11011000		; mode 1 : 7..5:110 mo.1 cursor, 4:1=2MHz, 3:10 = 40 chars, 1=0 no ttx, 0=0 no flash
+	.endif
 		sta	sheila_VIDPROC_ctl
 
 		ldx	#11
@@ -47,11 +51,6 @@
 		lda	#0+5
 		sta	sheila_SYSVIA_orb
 
-		lda	have_nula
-		beq	@nonula
-
-
-@nonula:
 		ldx	#16
 @pallp:		lda	playpal-1,X
 		sta	sheila_VIDPROC_pal
@@ -68,10 +67,14 @@
 		sty	sheila_SYSVIA_ddra		; leave it set like this...
 
 
+	.ifdef NULA
 		lda	#$10
 		sta	SHEILA_NULA_CTLAUX
+	.endif
 
 		jsr	init_irq
+
+here:	jmp here
 
 		; init data structures
 
@@ -87,18 +90,6 @@
 		sta	starflipnxt
 		lda	#BULLET_COUNT*.sizeof(bullet)
 		sta	bulletflipnxt
-
-		ldx	#1
-		lda	have_nula
-		bne	@sn
-		ldx	#4			; if no nula then scroll is byte-wise, repeat 4 times
-@sn:		stx	zp_frames_per_move
-		clc
-		stx	zp_frames_per_movex3
-		txa
-		rol	A
-		adc	zp_frames_per_movex3
-		sta	zp_frames_per_movex3
 
 		lda	#$7F
 		ldx	#VISTILES_SIZE
@@ -118,17 +109,12 @@
 
 
 		jsr	render_stars_and_bullets
-		ldx	have_nula
-		dex
-		txa
-		eor	#$FF
-		sta	zp_scroll_offs
-		jsr	render_player
 
-		lda	have_nula
-		bne	@s
-		jmp	main_loop
-@s:		
+	.ifdef NULA		
+		lda	#$FF
+		sta	zp_scroll_offs
+	.endif
+		jsr	render_player
 
 ;   _ _  _ . _   | _  _  _ 
 ;  | | |(_||| |__|(_)(_)|_)
@@ -156,9 +142,8 @@ main_loop:
 
 		lda	#0
 		sta	stars_rendered			; indicate stars not rendered
+	.ifdef NULA
 		sta	zp_scroll_offs			; assume no offset
-		lda	have_nula
-		beq	@nonula				; skip forwards if no nula
 
 		; we are in nula mode set the scroll offset to use when un-rendering
 		ldx	zp_cycle
@@ -171,7 +156,7 @@ main_loop:
 	DEBUG_STRIPE	$333
 		jsr	render_player			; NULA: we always UN-render the player with the relevant offset
 	DEBUG_STRIPE	$000
-@nonula:
+	.endif
 
 		lda	zp_cycle
 		and	#$03
@@ -179,13 +164,13 @@ main_loop:
 
 		; do scroll actions here every 4th frame
 
-		lda	have_nula
-		bne	@s
+	.ifndef NULA
 		jsr	render_stars_and_bullets	; NON-NULA UN-render stars and bullets (non-NULA)
 	DEBUG_STRIPE	$333
 		jsr	render_player			; NON-NULA UN render the player with no offset
 	DEBUG_STRIPE	$000
-@s:		jsr	scroll				; perform the 1 byte shift hardware scroll
+	.endif
+		jsr	scroll				; perform the 1 byte shift hardware scroll
 
 		; update anime counters
 		inc	zp_anime_ctr
@@ -234,12 +219,11 @@ main_loop:
 
 		jsr	move_player1			; actually update player position
 
-		ldx	#0
-		lda	have_nula
-		beq	@sss
+	.ifdef NULA
 		lda	zp_cycle
 		and	#3
 		sta	zp_scroll_offs
+	.endif
 
 
 		jsr	render_stars_and_bullets	; render the new stars
@@ -259,17 +243,16 @@ main_loop:
 
 
 
-
 next_tiles_column:
 
-		; move to next column (expects 4 scrolls to have happened)
+		; move to next column (expects 4 (2 NULA) scrolls to have happened)
 		clc
 		lda	new_tiles_top
-		adc	#32
+		adc	#TILE_BYTES_W
 		sta	new_tiles_top
 		sta	zp_tiledst_ptr
 		lda	new_tiles_top+1
-		adc	#0
+		adc	#0				; TODO SPEED UP
 		bpl	@s
 		sbc	#(>(PLAYFIELD_SIZE))-1
 @s:		sta	new_tiles_top+1
@@ -277,7 +260,7 @@ next_tiles_column:
 
 		clc
 		lda	up_tiles_top
-		adc	#32
+		adc	#TILE_BYTES_W
 		sta	up_tiles_top
 		lda	up_tiles_top+1
 		adc	#0
@@ -402,11 +385,11 @@ map_get:	ldy	zp_map_rle		; are we doing a run of blanks
 blit_tile_next_row:
 		clc
 		lda	zp_dest_ptr
-		adc	#<(PLAYFIELD_STRIDE-32)
+		adc	#<(PLAYFIELD_STRIDE-TILE_BYTES_W)
 		sta	zp_dest_ptr
 
 		lda	zp_dest_ptr+1
-		adc	#>(PLAYFIELD_STRIDE-32)
+		adc	#>(PLAYFIELD_STRIDE-TILE_BYTES_W)
 		bpl	@s1
 		sbc	#(>(PLAYFIELD_SIZE))-1
 @s1:		sta	zp_dest_ptr+1
@@ -436,7 +419,7 @@ dest_ptr_next_row:
 		rts
 
 blit_tile_half:
-		ldx	#4
+		ldx	#TILE_BYTES_W/8
 @l2:
 		ldy	#7
 
@@ -503,6 +486,10 @@ get_tile_src_ptr:
 		ror	A
 		ror	zp_src_ptr+1
 		ror	A
+	.ifdef NULA
+		ror	zp_src_ptr+1
+		ror	A
+	.endif
 		adc	#<blockx16x16
 		sta	zp_src_ptr
 		lda	zp_src_ptr+1
@@ -535,11 +522,6 @@ scroll:		php
 		inc	playfield_top_crtc
 		bne	@s1
 		inc	playfield_top_crtc+1
-		lda	playfield_top_crtc+1
-		cmp	#$10
-		bcc	@s1
-		sbc	#((>PLAYFIELD_SIZE)/8)
-		sta	playfield_top_crtc+1
 @s1:		
 		clc
 		lda	playfield_top
@@ -548,9 +530,10 @@ scroll:		php
 		bcc	@s2
 		inc	playfield_top+1
 		bpl	@s2
-		lda	playfield_top+1
-		sbc	#>PLAYFIELD_SIZE
+		lda	#>PLAYFIELD_TOP
 		sta	playfield_top+1
+		lda	#>(PLAYFIELD_TOP/8)
+		sta	playfield_top_crtc+1
 @s2:		
 		plp
 		rts
@@ -565,7 +548,8 @@ wait_midframe:	pha
 calc_tile_xy:
 	; on Entry X,Y in tiles from current tile pointer
 	; On Exit zp_dest_ptr contains pointer to address
-		; = X*32
+	
+		; = X*32 (X*16 NULA)
 
 		lda	#0
 		sta	zp_dest_ptr
@@ -577,6 +561,10 @@ calc_tile_xy:
 		ror	zp_dest_ptr
 		lsr	A
 		ror	zp_dest_ptr
+	.ifdef NULA
+		lsr	A
+		ror	zp_dest_ptr
+	.endif
 		sta	zp_dest_ptr+1
 
 
@@ -590,11 +578,13 @@ calc_tile_xy:
 		sta	zp_dest_ptr+1
 				
 
-		; += Y * 1024
+		; += Y * 1024 (+= Y *512 NULA)
 
 		tya
 		asl	A
+	.ifndef NULA
 		asl	A
+	.endif
 		clc
 		adc	zp_dest_ptr+1
 		bmi	@s
@@ -610,12 +600,15 @@ calc_tile_xy:
 	; on Entry X,Y in pixels offset to playfield (scrolled) screen
 	; On Exit zp_dest_ptr contains pointer to address
 calc_screen_xy:	
-		; = (X DIV 4)*8
+
 		lda	#0
 		sta	zp_dest_ptr+1
 		txa
+	.ifndef NULA
+		; = (X DIV 4)*8
 		asl	A
 		rol	zp_dest_ptr+1
+	.endif
 		and	#$F8
 		sta	zp_dest_ptr
 
@@ -641,11 +634,14 @@ calc_screen_xy:
 		php
 
 
-		; += Y DIV 8 * 512
+		; += Y DIV 8 * 512 (Y DIV 8 * 256 NULA)
 
 		tya
 		lsr	A
 		lsr	A
+	.ifdef NULA
+		lsr	A
+	.endif
 		and	#$FE
 
 		plp		
@@ -689,13 +685,13 @@ render_stars_and_bullets:
 		dec	zp_tmp
 		bne	@l
 
-		; scroll offset
-		lda	#0
-		bit	have_nula
-		beq	@noff
+		; scroll offset 		TODONULA
+	.ifdef NULA
 		lda	zp_cycle
 		and	#3
-@noff:		sta	zp_tmp5
+	.else
+		lda	#0
+	.endif
 
 		ldx	#BULLET_COUNT
 		stx	zp_tmp
@@ -862,7 +858,7 @@ move_stars:
 		ldx	#STARS_COUNT
 		stx	zp_tmp
 		ldx	starflipnxt
-@l:		ldy	zp_frames_per_move
+@l:		ldy	#FRAMES_PER_MOVE
 @l2:		txa
 		sec
 		sbc	starflipcur
@@ -974,7 +970,7 @@ move_bullets:
 		ldx	zp_tmp3	
 		clc
 		lda	bullets + bullet::px,X
-		adc	zp_frames_per_movex3
+		adc	#FRAMES_PER_MOVE_3
 		bcs	@end
 		sta	bullets + bullet::px,X
 @sb:		inx
@@ -1087,7 +1083,7 @@ move_player0:	lda	player_x
 		beq	@nup
 		lda	next_player_y
 		sec
-		sbc	zp_frames_per_move
+		sbc	#FRAMES_PER_MOVE
 		bpl	@novup
 		lda	#0
 @novup:		sta	next_player_y
@@ -1099,7 +1095,7 @@ move_player0:	lda	player_x
 		beq	@ndn
 		lda	next_player_y
 		clc
-		adc	zp_frames_per_move	
+		adc	#FRAMES_PER_MOVE	
 		cmp	#120
 		bcc	@novdn
 		lda	#120
@@ -1111,7 +1107,7 @@ move_player0:	lda	player_x
 		beq	@nlt
 		lda	next_player_x
 		sec
-		sbc	zp_frames_per_move
+		sbc	#FRAMES_PER_MOVE
 		bpl	@novlt
 		lda	#0
 @novlt:		sta	next_player_x
@@ -1120,7 +1116,7 @@ move_player0:	lda	player_x
 		and	#KEYS_RIGHT
 		beq	@nrt
 		lda	next_player_x
-		adc	zp_frames_per_move
+		adc	#FRAMES_PER_MOVE
 		cmp	#120
 		bcc	@novrt
 		lda	#120

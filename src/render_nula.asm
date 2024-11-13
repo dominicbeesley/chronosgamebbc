@@ -115,7 +115,11 @@ render_player:	ldx	player_x
 
 render_player_int:
 
-		stx	zp_cur_x
+		txa
+		clc
+		adc	zp_scroll_offs
+		sta	zp_cur_x
+		tax
 		sty	zp_cur_y
 
 		jsr	calc_screen_xy

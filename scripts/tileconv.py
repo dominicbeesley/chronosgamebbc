@@ -15,6 +15,8 @@ OPTIONS:
 		Number of tiles to capture default=1
 	--offset|-o
 		Offset in file default=0
+	--bpp1|-1
+		2 bits per pixel mode
 	--bpp2|-2
 		2 bits per pixel mode
 	--mask|-m XX	
@@ -78,8 +80,8 @@ def main(argv):
 	permute = None
 
 	try:
-		opts, args = getopt.gnu_getopt(argv,'h2m:x:n:o:s:w:h:lp:d:',
-			['help','bpp2','mask=','xor=','count=','offset=','stride=','width=','height=','linear','permute=','default='])
+		opts, args = getopt.gnu_getopt(argv,'h12m:x:n:o:s:w:h:lp:d:',
+			['help','bpp1','bpp2','mask=','xor=','count=','offset=','stride=','width=','height=','linear','permute=','default='])
 	except getopt.GetoptError as e:
 		usage(fh=sys.stderr, msg=f"ERROR:Parameter error: {e}", exit=1)
 		
@@ -88,6 +90,8 @@ def main(argv):
 			usage(exit=0)
 		elif opt == '-2' or opt == '--bpp2':
 			bpp = 2
+		elif opt == '-1' or opt == '--bpp1':
+			bpp = 1
 		elif opt == '-l' or opt == '--linear':
 			linear = True
 		elif opt == '-m' or opt == '--mask':

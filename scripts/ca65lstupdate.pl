@@ -5,6 +5,8 @@ use Text::ParseWords;
 use Data::Dumper;
 use File::Spec::Functions;
 use File::Basename;
+use Getopt::Long;
+
 
 # Attempt to update the relative addresses in a set of
 # ca65 listing files with data from an ld65 --dbgfile
@@ -13,7 +15,13 @@ use File::Basename;
 sub usage($$) {
 	my ($fh, $msg) = @_;
 
-	print "ca65lstupdate.pl <debug file> <listings directory>\n";
+	print "ca65lstupdate.pl [options] <debug file> <listings directory>
+	
+Options:
+	--ext <str> where <str> contains the extension to use for .lst files
+				default=.lst
+
+\n";
 
 	
 	$msg && die $msg;
@@ -31,6 +39,10 @@ sub additem($$) {
 		$hr->{$r{"id"}} = \%r;
 	}
 }
+
+my $opt_lst_ext=".lst";
+
+GetOptions('ext=s' => \$opt_lst_ext) or die("Error in arguments");
 
 my $fn_dbg = shift or usage(*STDERR, "Missing debug file parameter");
 my $dirlst = shift or usage(*STDERR, "Missing listings directory");
@@ -73,7 +85,7 @@ close ($fh_dbg);
 for my $f (values %files) {
 	if ($f->{name} =~ /.asm$/) {
 		my $fnlst = $f->{name};
-		$fnlst =~ s/.asm$/.lst/;
+		$fnlst =~ s/.asm$/$opt_lst_ext/;
 		my $pfnlst = catfile($dirlst, $fnlst);
 		if (!-e $pfnlst) {
 			# not found try flattening directory

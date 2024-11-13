@@ -5,12 +5,31 @@ ZP_ROM_SLOT=$80
 
 
 TILE_BLANK=$7F
-PLAYFIELD_STRIDE	:= 32*8*2
-PLAYFIELD_SIZE  	:= $2000
-PLAYFIELD_TOP		:= $8000-16*PLAYFIELD_STRIDE
-
-
+	.ifdef NULA
+PLAYFIELD_STRIDE	:= 32*8		; stride displayed
+PLAYFIELD_SIZE  	:= $2000	; this may be larger than displayed size
+PLAYFIELD_SIZE_DISP  	:= $1000	; actual displayed size
+PLAYFIELD_TOP		:= $6000	; address of top of buffer
 BLOCK_BUFFER		:= $0400	; off-screen buffer for next column of tiles 
+FRAMES_PER_MOVE		:= 1
+FRAMES_PER_MOVE_3	:= 3
+	.else
+PLAYFIELD_STRIDE	:= 32*8*2	; stride displayed
+PLAYFIELD_SIZE  	:= $2000	; this may be larger than displayed size
+PLAYFIELD_SIZE_DISP	:= $2000	; actual displayed size
+PLAYFIELD_TOP		:= $6000	; address of top of buffer
+BLOCK_BUFFER		:= $0400	; off-screen buffer for next column of tiles 
+FRAMES_PER_MOVE		:= 4
+FRAMES_PER_MOVE_3	:= 12
+	.endif
+
+	.ifdef NULA
+TILE_BYTES_W = 16
+	.else
+TILE_BYTES_W = 32
+	.endif
+
+
 
 TILE_DOWN_TIT		:= $18
 TILE_UP_TIT		:= $19
@@ -41,6 +60,19 @@ ENEMIES_COUNT	:= 3
 	.endstruct
 
 .endif
+
+	.ifdef NULA
+ES_SIZE := 32
+	.else
+ES_SIZE := 64
+	.endif
+
+; ENEMY_SPRITE_OFFSETS
+ESO_T0_BALL	:= 27*ES_SIZE
+ESO_T1_ROCKET	:= 26*ES_SIZE
+ESO_T2_3_4	:= 14*ES_SIZE
+ESO_T0_5	:= 7 *ES_SIZE
+ESO_T0_6	:= 0 *ES_SIZE
 
 NKEYS = 		5
 KEYS_DOWN =		$01

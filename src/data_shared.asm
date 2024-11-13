@@ -21,7 +21,6 @@
 	.export next_player_y
 	.export player_keys
 	.export enemies
-	.export have_nula
 	.export stars_rendered
 	.export stars
 	.export stars2
@@ -39,6 +38,22 @@ tblKeys:		.byte	$68	; down	?
 			.byte	$62	; fire	SPACE
 
 playfield_CRTC_mode:
+	.ifdef NULA
+		; a mode 4 ish screen with 256 pixels
+		.byte	$3f				; 0 Horizontal Total	 =64
+		.byte	$20				; 1 Horizontal Displayed =32
+		.byte	$2D				; 2 Horizontal Sync	 =45
+		.byte	$24				; 3 HSync Width+VSync	 =&24  VSync=2, HSync=4
+		.byte	$26				; 4 Vertical Total	 =38
+		.byte	$00				; 5 Vertical Adjust	 =0
+		.byte	$10				; 6 Vertical Displayed	 =32
+		.byte	$22				; 7 VSync Position	 =&22
+		.byte	$00				; 8 Interlace+Cursor	 =&00  Cursor=0, Display=0, Interlace=None
+		.byte	$07				; 9 Scan Lines/Character =8
+		.byte	$67				; 10 Cursor Start Line	  =&67	Blink=On, Speed=1/32, Line=7
+		.byte	$08				; 11 Cursor End Line	  =8
+	.else
+		; a mode 4 ish screen with 256 pixels
 		.byte	$7f				; 0 Horizontal Total	 =128
 		.byte	$40				; 1 Horizontal Displayed =64
 		.byte	$5A				; 2 Horizontal Sync	 
@@ -51,9 +66,29 @@ playfield_CRTC_mode:
 		.byte	$07				; 9 Scan Lines/Character =8
 		.byte	$67				; 10 Cursor Start Line	 =&67	Blink=On, Speed=1/32, Line=7
 		.byte	$08				; 11 Cursor End Line	 =8
+	.endif
 
 playpal:
-
+	.ifdef NULA
+		; make colour 0 black
+		.byte	%00001111
+		.byte	%00011111
+		.byte	%00101111
+		.byte	%00111111
+		.byte	%01001111
+		.byte	%01011111
+		.byte	%01101111
+		.byte	%01111111
+		; make colour 1 yellow
+		.byte	%10001100
+		.byte	%10011100
+		.byte	%10101100
+		.byte	%10111100
+		.byte	%11001100
+		.byte	%11011100
+		.byte	%11101100
+		.byte	%11111100
+	.else
 		; make colour 0 black
 		.byte	%00001111
 		.byte	%00011111
@@ -74,22 +109,35 @@ playpal:
 		.byte	%10111000
 		.byte	%11101000
 		.byte	%11111000
+	.endif
 
+	.ifdef NULA
+blockx16x16:	.incbin "../build/src/blocks16x16.n.bin"
+playersprites:	.incbin "../build/src/player.n.bin"
+enemysprites:	.incbin "../build/src/enemies.n.bin"
+NUMFONT:	.incbin "../build/src/numfont.n.f2"
+	.else	
 blockx16x16:	.incbin "../build/src/blocks16x16.bin"
 playersprites:	.incbin "../build/src/player.bin"
 enemysprites:	.incbin "../build/src/enemies.bin"
 NUMFONT:	.incbin "../build/src/numfont.f2"
+	.endif
 
 
 		.data
 		.align	8		
+	.ifdef NULA
+chronospipe:	.incbin "../build/src/chronospipe.n.bin"	; not strictly r/w but needs to go next to scoreboard
+scoreboard:	.res	8*8*2				; bitmap for score		-- TODO 1BPP REDUCE
+	.else
 chronospipe:	.incbin "../build/src/chronospipe.bin"	; not strictly r/w but needs to go next to scoreboard
 scoreboard:	.res	8*8*2				; bitmap for score
+	.endif
 
 playfield_top_crtc:	.word	PLAYFIELD_TOP / 8			; start of playfield screen (in crtc address)
 playfield_top:		.word	PLAYFIELD_TOP				; start of playfield screen (in RAM address)
 new_tiles_top:		.word	PLAYFIELD_TOP + PLAYFIELD_STRIDE	; where new tiles are to be plotted
-up_tiles_top:		.word	PLAYFIELD_TOP + 32			; where tiles will be updated relative to
+up_tiles_top:		.word	PLAYFIELD_TOP + TILE_BYTES_W		; where tiles will be updated relative to
 
 player_x:		.byte	32
 player_y:		.byte   80
@@ -109,7 +157,6 @@ enemies:	.byte	$30, $60, $0, $0
 
 
 
-have_nula:	.byte	1
 stars_rendered:	.byte	0				; flag stars have been erased and need rerendering/moving
 
 

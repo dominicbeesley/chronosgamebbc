@@ -14,9 +14,9 @@
 			.exportzp zp_map_rle
 			.exportzp zp_cycle
 			.exportzp zp_next_cycle
+	.ifdef NULA
 			.exportzp zp_scroll_offs
-			.exportzp zp_frames_per_move
-			.exportzp zp_frames_per_movex3
+	.endif
 			.exportzp zp_anime_ctr
 			.exportzp zp_anime_ctr6
 			.exportzp zp_cur_enemy
@@ -41,9 +41,9 @@ zp_map_ptr:		.res	2		; pointer into map data
 zp_map_rle:		.res	1		; if <>0 then repeat this many tile=7F's
 zp_cycle:		.res	1		; modulo 16 cycle counter, scroll 1 byte every 4 display new tiles every 16
 zp_next_cycle:		.res	1		; next value of above - for use in irq handler
+	.ifdef NULA
 zp_scroll_offs: 	.res	1		; the scroll offset to apply when rendering (or un-rendering)
-zp_frames_per_move:	.res	1		; used to multiply speed of stars/player
-zp_frames_per_movex3:	.res	1		; used for number of pixels to move bullets
+	.endif
 zp_anime_ctr:		.res	1		; index for animating enemies etc
 zp_anime_ctr6:		.res	1		; index for animating enemies etc (modulo 6)
 zp_cur_enemy:		.res	1		; index for currently processing enemy
