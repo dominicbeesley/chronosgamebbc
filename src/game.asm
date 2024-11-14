@@ -682,7 +682,6 @@ render_stars_and_bullets:
 		lda	#$FF
 		sta	stars_rendered
 
-		rts
 
 		; stars first
 		ldx	#STARS_COUNT
@@ -734,6 +733,7 @@ render_stars_and_bullets:
 		lda	(zp_dest_ptr),Y
 		eor	#$FF
 		sta	(zp_dest_ptr),Y
+	.ifndef NULA
 		ldy	#16
 		lda	(zp_dest_ptr),Y
 		eor	#$FF
@@ -742,7 +742,7 @@ render_stars_and_bullets:
 		lda	(zp_dest_ptr),Y
 		eor	#$FF
 		sta	(zp_dest_ptr),Y
-
+	.endif
 		pla
 		tax
 
@@ -772,6 +772,7 @@ render_stars_and_bullets:
 		inx				; move down one
 
 		jsr	visibleX_to_screen
+	.ifndef NULA
 		clc
 		lda	zp_dest_ptr
 		adc	#8
@@ -783,30 +784,38 @@ render_stars_and_bullets:
 		lda	zp_dest_ptr+1
 		sbc	#>PLAYFIELD_SIZE
 		sta	zp_dest_ptr+1
+	.endif
+
+	.ifdef NULA
+@GLYPH	:= $03
+	.else
+@GLYPH	:= $33
+	.endif
+
 @s2:
 
 @ll:		ldy	#1
 
 		lda	(zp_dest_ptr),Y
-		eor	#$33
+		eor	#@GLYPH
 		sta	(zp_dest_ptr),Y
 		iny
 		iny
 
 		lda	(zp_dest_ptr),Y
-		eor	#$33
+		eor	#@GLYPH
 		sta	(zp_dest_ptr),Y
 		iny
 		iny
 
 		lda	(zp_dest_ptr),Y
-		eor	#$33
+		eor	#@GLYPH
 		sta	(zp_dest_ptr),Y
 		iny
 		iny
 
 		lda	(zp_dest_ptr),Y
-		eor	#$33
+		eor	#@GLYPH
 		sta	(zp_dest_ptr),Y
 
 		jsr	dest_ptr_next_row
@@ -814,8 +823,6 @@ render_stars_and_bullets:
 		dec	zp_tmp3
 		bne	@ll
 		
-
-
 		
 		ldx	zp_tmp2
 		inx

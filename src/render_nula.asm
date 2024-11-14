@@ -45,7 +45,6 @@ zp_dest_ptr_sav:.res	2
 ;------------------------------------------------------------------
 ; on entry X contains the pixel offset to add (due to sub-byte scrolling for NULA or not)
 render_enemy:	; calculate enemy source address
-		rts
 
 		LDXY	enemysprites
 
@@ -55,6 +54,8 @@ render_enemy:	; calculate enemy source address
 		lda	zp_anime_ctr
 		and	#7
 
+		lsr	A
+		ror	zp_cur_x
 		lsr	A
 		ror	zp_cur_x
 		lsr	A
