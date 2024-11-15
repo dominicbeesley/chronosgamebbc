@@ -39,8 +39,6 @@ render_prev:	.res	REN_N_SHIFTS		; used to save previous char cell for each row
 
 		.data
 
-ind_render_row:	.res	2
-
 		.code
 
 
@@ -148,9 +146,9 @@ render_player_int:
 		sta	zp_mask_pre
 
 		lda	tbl_rr_l,X
-		sta	ind_render_row
+		sta	render_row+1
 		lda	tbl_rr_h,X
-		sta	ind_render_row+1
+		sta	render_row+2
 
 		lda	zp_src_ptr
 		sta	zp_src_ptr_save
@@ -204,7 +202,7 @@ render_player_int:
 render_player_exit:	
 		rts					
 		
-render_row:	jmp	(ind_render_row)
+render_row:	jmp	$FFFF
 
 	.repeat REN_N_SHIFTS, I
 		; for each possible shift generate a render_row routine
@@ -289,12 +287,12 @@ render_row:	jmp	(ind_render_row)
 		lda	zp_dest_ptr
 		adc	#8
 		sta	zp_dest_ptr
-		lda	zp_dest_ptr+1
-		adc	#0
+		bcc	@s33
+		inc	zp_dest_ptr+1
 		bpl	@s33
-		sec
-		sbc	#>PLAYFIELD_SIZE
-@s33:		sta	zp_dest_ptr+1
+		lda	#>PLAYFIELD_TOP
+		sta	zp_dest_ptr+1
+@s33:		
 
 		lda	#0
 		sta	zp_first_col
