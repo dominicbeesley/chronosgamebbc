@@ -246,6 +246,10 @@ my_irq1:	cld				; ensure decimal mode cleared
 
 		sta	sheila_SYSVIA_ifr
 
+;================================================================================
+; SYS T1
+;================================================================================
+
 		; SYS via T1 has fired - we are in second half of screen so fiddle registers to:
 
 		; Set second half of screen to be big...
@@ -363,19 +367,20 @@ my_irq1:	cld				; ensure decimal mode cleared
 
 
 		inc 	frame_ctr
-
-
-		bne	@out
+		jmp	@out
 
 @notUsrT1:	lda	sheila_SYSVIA_ifr
 		and	#$02
-		beq	@ukirq
-		sta	sheila_SYSVIA_ifr
+		bne	:+
+		jmp	@ukirq
+:		sta	sheila_SYSVIA_ifr
 
 ;================================================================================
-; SYS T1 - in middle of logo area
+; VSYNC!
 ;================================================================================
 
+
+		; TODO - check this might need to go elsewhere / be the cause of the glitchy scrolling?
 
 		; vsync set playfield top
 
@@ -419,6 +424,7 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_reg
 		lda	#PLAYFIELD_H_DISP
 		sta	sheila_CRTC_dat
+
 
 
 	.ifdef NULA
