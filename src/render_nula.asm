@@ -30,7 +30,6 @@ zp_next_char:	.res	1
 
 zp_cur_x:	.res	1
 zp_cur_y:	.res	1
-zp_first_col:	.res	1
 
 zp_dest_ptr_sav:.res	2
 
@@ -204,32 +203,46 @@ render_player_exit:
 		
 render_row:	jmp	$FFFF
 
+
+	.macro	NEXT_DEST_CELL
+		.local @s33
+		clc
+		lda	zp_dest_ptr
+		adc	#8
+		sta	zp_dest_ptr
+		bcc	@s33
+		inc	zp_dest_ptr+1
+		bpl	@s33
+		lda	#>PLAYFIELD_TOP
+		sta	zp_dest_ptr+1
+@s33:		
+	.endmacro
+
+	.macro NEXT_SRC_CELL
+		.local @s2
+		clc
+		lda	zp_src_ptr
+		adc	#8
+		sta	zp_src_ptr
+		bcc	@s2
+		inc	zp_src_ptr+1		
+@s2:	.endmacro
+
+
+
 	.repeat REN_N_SHIFTS, I
 		; for each possible shift generate a render_row routine
 
 .ident(.sprintf("render_row%d", I)):	
 		lda	zp_width				; width
 		sta	zp_width_ctr
-		sta	zp_first_col				; mark first column
-@cloop:		
-		
+
+	.if I<>0
+		; there will always be a first column for a shifted sprite
+		; that is different (no previous data to shift in)
+		; do that here as a special case
+
 		ldy	zp_char_row
-
-	.if I=0
-		; simple render with no shift
-@rloop:		lda	(zp_dest_ptr),Y
-		eor	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
-		dey	
-		bpl	@rloop
-		bmi	@sk
-	.else
-		; I contains number of positions to shift to right
-
-		lda	zp_first_col
-		beq	@rorn
-		; if this is first column we don't need to shift in previous col's data
-
 @ror0:		lda	(zp_src_ptr),Y	
 		; shift right
 	.repeat	I, J
@@ -248,9 +261,35 @@ render_row:	jmp	$FFFF
 	.endrepeat
 		and	zp_mask_pre
 		sta	render_prev,Y
+
+
 		dey
 		bpl	@ror0
+
+		NEXT_SRC_CELL
+		NEXT_DEST_CELL
+
+
+		dec	zp_width_ctr		;; assumes > 1
+
+	.endif
+
+@cloop:		
+		
+		ldy	zp_char_row
+
+	.if I=0
+		; simple render with no shift
+@rloop:		lda	(zp_dest_ptr),Y
+		eor	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey	
+		bpl	@rloop
 		bmi	@sk
+	.else
+		; I contains number of positions to shift to right
+
+
 
 
 @rorn:		lda	(zp_src_ptr),Y	
@@ -262,6 +301,7 @@ render_row:	jmp	$FFFF
 		eor	(zp_dest_ptr),Y
 		sta	(zp_dest_ptr),Y
 
+
 		; do left shift. This is actually quicker than combining with the ror above
 		; for worst case as 7*ror zp is 35 inst instead of 1 rol = 2 + loop overhead
 
@@ -271,31 +311,15 @@ render_row:	jmp	$FFFF
 	.endrepeat
 		and	zp_mask_pre
 		sta	render_prev,Y
+
 		dey
 		bpl	@rorn
 	.endif ; shift/no shift
 @sk:		
-		clc
-		lda	zp_src_ptr
-		adc	#8
-		sta	zp_src_ptr
-		bcc	@s2
-		inc	zp_src_ptr+1		
-@s2:
+		NEXT_SRC_CELL
 
-		clc
-		lda	zp_dest_ptr
-		adc	#8
-		sta	zp_dest_ptr
-		bcc	@s33
-		inc	zp_dest_ptr+1
-		bpl	@s33
-		lda	#>PLAYFIELD_TOP
-		sta	zp_dest_ptr+1
-@s33:		
+		NEXT_DEST_CELL
 
-		lda	#0
-		sta	zp_first_col
 		dec	zp_width_ctr
 		bne	@cloop
 
