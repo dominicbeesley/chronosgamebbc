@@ -1241,7 +1241,8 @@ renderscore:	ldx	#0				; screen pointer
 		bpl	@lp
 		rts
 
-zeroscore:	ldx	#3
+zeroscore:	
+		ldx	#3
 		lda	#0
 @l:		sta	score,X
 		dex
@@ -1257,7 +1258,12 @@ renderBCD2:	pha
 		asl	A
 		asl	A
 @r:		sty	zp_tmp
+	.ifdef NULA
+		ldy	#8
+		lsr	A
+	.else
 		ldy	#16
+	.endif
 		sty	zp_tmp2
 		tay
 @r8:		lda	NUMFONT,Y
