@@ -163,6 +163,7 @@ init_irq:
 		ldy	#SYS_T1_V+(SCREEN_V_TOT-SCREEN_V_SYNC)
 		jsr	wait_1024y
 
+		jsr	wait_SSS1	; another approx. half line's wait
 
 		ldx	#<(FRAME-2)
 		ldy	#>(FRAME-2)
@@ -308,12 +309,13 @@ my_irq1:	cld				; ensure decimal mode cleared
 		; we need to fiddle one scan line to be slightly longer to center the smaller area without upsetting
 		; the sync train
 		
+		lda	#$00
+		sta	sheila_USRVIA_orb
+
 		lda	#CRTC_R0_H_TOT
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT+LOGO_H_ADJ-1
 		sta	sheila_CRTC_dat
-		lda	#$0
-		sta	sheila_USRVIA_orb
 
 	.ifdef NULA
 		; don't blank some pixels at left hand side to hide drawing the point at which the 
@@ -353,12 +355,13 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_dat
 
 
+		lda	#$01
+		sta	sheila_USRVIA_orb
+
 		lda	#CRTC_R0_H_TOT
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT-1
 		sta	sheila_CRTC_dat
-		lda	#$FF
-		sta	sheila_USRVIA_orb
 
 		lda	#CRTC_R2_H_SYNC
 		sta	sheila_CRTC_reg
@@ -386,6 +389,7 @@ my_irq1:	cld				; ensure decimal mode cleared
 
 		; set next field start address to playfield
 
+
 		lda	#CRTC_R12_ADDR+1
 		sta	sheila_CRTC_reg
 		lda	playfield_top_crtc
@@ -397,27 +401,39 @@ my_irq1:	cld				; ensure decimal mode cleared
 
 
 		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
-
+		
 
 		; we need to fiddle one scan line to be slightly shorter to center the larger playfield
 		
+
+		lda	#$02
+		ora	sheila_USRVIA_orb
+		sta	sheila_USRVIA_orb
+
 		lda	#CRTC_R0_H_TOT
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT-LOGO_H_ADJ-1
 		sta	sheila_CRTC_dat
 
-		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
-		jsr	wait_SSS	; slightly less than a scan line which is 128
+
+		jsr	wait_SSS1
+
+
+		lda	#$FD
+		and	sheila_USRVIA_orb
+		sta	sheila_USRVIA_orb
+
+		lda	#CRTC_R2_H_SYNC
+		sta	sheila_CRTC_reg
+		lda	#SCREEN_H_SYNC
+		sta	sheila_CRTC_dat
 
 		lda	#CRTC_R0_H_TOT
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT-1
 		sta	sheila_CRTC_dat
 
-		lda	#CRTC_R2_H_SYNC
-		sta	sheila_CRTC_reg
-		lda	#SCREEN_H_SYNC
-		sta	sheila_CRTC_dat
+
 
 		; set H DISP to size of playfield in bytes
 		lda	#CRTC_R1_H_DISP
