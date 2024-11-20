@@ -5,6 +5,7 @@
 
 		.macro	DEBUG_STRIPE ccc
 		.ifdef DO_DEBUG_STRIPES
+		.ifdef NULA
 			php					;	3	1
 			pha					;	3	1
 			lda	#$00 + ((ccc >> 8) & $0F)	;	2	2
@@ -15,6 +16,15 @@
 			pla					;	4	1
 			plp					;	4	1
 								;	26	14
+		.else
+			php					;	3	1
+			pha					;	3	1
+			lda	#$0F - ((((ccc & $F00)<>0)*4) + (((ccc & $0F0)<>0)*2) + (((ccc & $00F)<>0)*1))
+								;	2	2
+			sta	sheila_VIDPROC_pal
+			pla					;	4	1
+			plp					;	4	1
+		.endif
 		.endif
 		.endmacro
 

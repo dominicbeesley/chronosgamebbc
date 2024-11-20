@@ -266,6 +266,16 @@ my_irq1:	cld				; ensure decimal mode cleared
 		lda	#LOGO_V_SYNC
 		sta	sheila_CRTC_dat		
 		
+		DEBUG_STRIPE	$F0F
+		lda	#$00
+		sta	sheila_VIDPROC_pal
+		jsr	wait_SSS
+		jsr	wait_SSS
+		jsr	wait_SSS
+		lda	#$0F
+		sta	sheila_VIDPROC_pal
+		DEBUG_STRIPE	$000
+
 		jmp	@out
 		
 

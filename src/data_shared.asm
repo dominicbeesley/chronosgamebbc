@@ -150,7 +150,7 @@ player_keys:		.byte	0
 		; the following data is used for sub-screens
 
 
-enemies:	.byte	$30, $60, $0, $0
+enemies:	.byte	$30, $20, $0, $0
 		.byte	$41, $62, $0, $1
 		.byte	$52, $75, $0, $2
 

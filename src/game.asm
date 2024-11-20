@@ -68,8 +68,8 @@
 
 
 	.ifdef NULA
-		lda	#$10
-		sta	SHEILA_NULA_CTLAUX
+		lda	#$40
+		sta	SHEILA_NULA_CTLAUX		; reset nula stuff
 	.endif
 
 		jsr	init_irq
@@ -547,6 +547,12 @@ scroll:		php
 		sta	playfield_top_crtc+1
 @s2:		
 		plp
+
+		lda	playfield_top_crtc
+		sta	score+2
+		lda	playfield_top_crtc+1
+		sta	score+3
+
 		rts
 
 wait_midframe:	pha

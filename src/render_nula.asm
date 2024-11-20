@@ -19,6 +19,8 @@ REN_N_SHIFTS	:=	8		; number of shifts (max) 4 for mode 1, 8 for mode 4
 		.zeropage
 zp_width:	.res	1
 zp_width_ctr:	.res	1
+zp_height:	.res	1
+zp_height_ctr:	.res	1
 
 zp_src_ptr_save:.res	2
 zp_char_row:	.res	1
@@ -83,6 +85,8 @@ render_enemy:	; calculate enemy source address
 
 		lda	#2				; width of gfx
 		sta	zp_width
+		lda	#2
+		sta	zp_height		
 		jsr	render_player_int
 
 		rts
@@ -103,6 +107,8 @@ render_player:	ldx	player_x
 		ldy	player_y
 		lda	#4
 		sta	zp_width
+		lda	#1
+		sta	zp_height
 
 ;;		lda	zp_anime_ctr
 ;;		ror	A		;C
@@ -154,7 +160,27 @@ render_player_int:
 		lda	zp_src_ptr+1
 		sta	zp_src_ptr_save+1
 
+		lda	zp_height
+		sta	zp_height_ctr
+
+		lda	zp_dest_ptr
+		sta	zp_dest_ptr_sav
+		lda	zp_dest_ptr+1
+		sta	zp_dest_ptr_sav+1
+
+
 		; draw first char row of ship 
+@chrowlp:
+
+		lda	zp_src_ptr_save
+		sta	zp_src_ptr
+		lda	zp_src_ptr_save+1
+		sta	zp_src_ptr+1
+
+		lda	zp_dest_ptr_sav
+		sta	zp_dest_ptr
+		lda	zp_dest_ptr_sav+1
+		sta	zp_dest_ptr+1
 
 		lda	zp_cur_y
 		and	#7
@@ -162,10 +188,6 @@ render_player_int:
 		tay
 		sty	zp_char_row
 
-		lda	zp_dest_ptr
-		sta	zp_dest_ptr_sav
-		lda	zp_dest_ptr+1
-		sta	zp_dest_ptr_sav+1
 
 		jsr	render_row
 
@@ -179,15 +201,11 @@ render_player_int:
 		sta	zp_src_ptr+1
 
 
-		lda	zp_char_row
-		eor	#7
-		sta	zp_char_row
-		beq	render_player_exit
-		dec	zp_char_row
 
 		; move to next char row
 		lda	zp_dest_ptr_sav
 		adc	#<PLAYFIELD_STRIDE
+		sta	zp_dest_ptr_sav
 		and	#$F8				; move to first row in cell
 		sta	zp_dest_ptr
 		lda	zp_dest_ptr_sav+1
@@ -196,7 +214,31 @@ render_player_int:
 		sec
 		sbc	#>PLAYFIELD_SIZE
 @sw:		sta	zp_dest_ptr+1
-		jsr	render_row			; instrumentation - fall through normally
+		sta	zp_dest_ptr_sav+1
+
+		lda	zp_char_row
+		eor	#7
+		sta	zp_char_row
+		beq	@skr2
+		dec	zp_char_row
+
+		jsr	render_row	
+
+		
+
+
+@skr2:		lda	zp_width
+		asl	A
+		asl	A
+		asl	A
+		adc	zp_src_ptr_save
+		sta	zp_src_ptr_save
+		lda	zp_src_ptr_save+1
+		adc	#0
+		sta	zp_src_ptr_save+1
+
+		dec	zp_height_ctr
+		bne	@chrowlp
 
 render_player_exit:	
 		rts					

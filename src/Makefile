@@ -114,7 +114,7 @@ $(BUILD)/chronospipe.bin: $(SPECSRC)/chronosm.bin
 $(BUILD)/enemies.bin: $(SPECSRC)/chronosm.bin
 	$(SCRIPTS)/tileconv.py --bpp2 --mask 0xF0 --width 2 --height 16 --offset 0xCCEE --count 28 $< $@
 $(BUILD)/numfont.f2: $(BUILD)/numfont.f1
-	$(SCRIPTS)/tileconv.py --bpp2 --width 1 --height 8 --offset 0x0 --count 10 $< $@
+	$(SCRIPTS)/tileconv.py --bpp2 --width 1 --height 8 --offset 0x0 --count 16 $< $@
 
 # nula graphics (mode 4)
 $(BUILD)/blocks16x16.n.bin: $(SPECSRC)/chronosm.bin
@@ -126,7 +126,7 @@ $(BUILD)/chronospipe.n.bin: $(SPECSRC)/chronosm.bin
 $(BUILD)/enemies.n.bin: $(SPECSRC)/chronosm.bin
 	$(SCRIPTS)/tileconv.py --bpp1 --width 2 --height 16 --offset 0xCCEE --count 28 $< $@
 $(BUILD)/numfont.n.f2: $(BUILD)/numfont.f1
-	$(SCRIPTS)/tileconv.py --bpp1 --width 1 --height 8 --offset 0x0 --count 10 $< $@
+	$(SCRIPTS)/tileconv.py --bpp1 --width 1 --height 8 --offset 0x0 --count 16 $< $@
 
 
 
