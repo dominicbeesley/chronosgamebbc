@@ -71,23 +71,23 @@ playfield_CRTC_mode:
 playpal:
 	.ifdef NULA
 		; make colour 0 black
-		.byte	%00001111
-		.byte	%00011111
-		.byte	%00101111
-		.byte	%00111111
-		.byte	%01001111
-		.byte	%01011111
-		.byte	%01101111
-		.byte	%01111111
+		.byte	%00000111
+		.byte	%00010111
+		.byte	%00100111
+		.byte	%00110111
+		.byte	%01000111
+		.byte	%01010111
+		.byte	%01100111
+		.byte	%01110111
 		; make colour 1 yellow
-		.byte	%10001100
-		.byte	%10011100
-		.byte	%10101100
-		.byte	%10111100
-		.byte	%11001100
-		.byte	%11011100
-		.byte	%11101100
-		.byte	%11111100
+		.byte	%10000100
+		.byte	%10010100
+		.byte	%10100100
+		.byte	%10110100
+		.byte	%11000100
+		.byte	%11010100
+		.byte	%11100100
+		.byte	%11110100
 	.else
 		; make colour 0 black
 		.byte	%00001111
