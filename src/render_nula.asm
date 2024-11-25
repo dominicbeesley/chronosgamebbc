@@ -204,17 +204,14 @@ render_player_int:
 
 		; move to next char row
 		lda	zp_dest_ptr_sav
-		adc	#<PLAYFIELD_STRIDE
-		sta	zp_dest_ptr_sav
 		and	#$F8				; move to first row in cell
 		sta	zp_dest_ptr
-		lda	zp_dest_ptr_sav+1
-		adc	#>PLAYFIELD_STRIDE
+		ldx	zp_dest_ptr_sav+1
+		inx
 		bpl	@sw
-		sec
-		sbc	#>PLAYFIELD_SIZE
-@sw:		sta	zp_dest_ptr+1
-		sta	zp_dest_ptr_sav+1
+		ldx	#>PLAYFIELD_TOP
+@sw:		stx	zp_dest_ptr+1
+		stx	zp_dest_ptr_sav+1
 
 		lda	zp_char_row
 		eor	#7

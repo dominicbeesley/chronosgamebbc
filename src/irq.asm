@@ -400,13 +400,13 @@ my_irq1:	cld				; ensure decimal mode cleared
 		; set next field start address to playfield
 
 
-		lda	#CRTC_R12_ADDR+1
-		sta	sheila_CRTC_reg
-		lda	playfield_top_crtc
-		sta	sheila_CRTC_dat
 		lda	#CRTC_R12_ADDR
 		sta	sheila_CRTC_reg
 		lda	playfield_top_crtc+1
+		sta	sheila_CRTC_dat
+		lda	#CRTC_R12_ADDR+1
+		sta	sheila_CRTC_reg
+		lda	playfield_top_crtc
 		sta	sheila_CRTC_dat
 
 

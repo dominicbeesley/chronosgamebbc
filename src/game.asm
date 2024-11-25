@@ -262,22 +262,26 @@ next_tiles_column:
 		adc	#TILE_BYTES_W
 		sta	new_tiles_top
 		sta	zp_tiledst_ptr
-		lda	new_tiles_top+1
-		adc	#0				; TODO SPEED UP
-		bpl	@s
-		sbc	#(>(PLAYFIELD_SIZE))-1
-@s:		sta	new_tiles_top+1
-		sta	zp_tiledst_ptr+1
+		ldx	new_tiles_top+1
+		bcc	@s
+		inx
+		bpl	:+
+		ldx	#>PLAYFIELD_TOP
+:		stx	new_tiles_top+1
+@s:		stx	zp_tiledst_ptr+1
+
 
 		clc
 		lda	up_tiles_top
 		adc	#TILE_BYTES_W
 		sta	up_tiles_top
-		lda	up_tiles_top+1
-		adc	#0
-		bpl	@ss
-		sbc	#(>(PLAYFIELD_SIZE))-1
-@ss:		sta	up_tiles_top+1
+		bcc	@ss
+		ldx	up_tiles_top+1
+		inx
+		bpl	:+
+		ldx	#>PLAYFIELD_TOP
+:		stx	up_tiles_top+1
+@ss:
 
 		; scroll the visibile tilemap
 		ldx	#0
@@ -416,18 +420,29 @@ blit_tile:	jsr	blit_tile_half
 
 
 dest_ptr_next_row:
-		clc
-		lda	zp_dest_ptr
-		adc	#<(PLAYFIELD_STRIDE)
-		sta	zp_dest_ptr
 
-		lda	zp_dest_ptr+1
-		adc	#>(PLAYFIELD_STRIDE)
-		bpl	@s1
-		sbc	#(>(PLAYFIELD_SIZE))-1
-@s1:		sta	zp_dest_ptr+1
-
+	.ifdef NULA
+		.assert PLAYFIELD_STRIDE = $0100, error, "PLAYFIELD stride must be $100"
+		inc	zp_dest_ptr+1
+		bmi	@s1
 		rts
+@s1:		lda	#>PLAYFIELD_TOP
+		sta	zp_dest_ptr+1
+		rts
+	.else
+		.assert PLAYFIELD_STRIDE = $0200, error, "PLAYFIELD stride must be $200"
+		inc	zp_dest_ptr+1
+		bmi	@s1
+		inc	zp_dest_ptr+1
+		bmi	@s2
+		rts
+@s1:		lda	#(>PLAYFIELD_TOP)+1
+		sta	zp_dest_ptr+1
+		rts
+@s2:		lda	#(>PLAYFIELD_TOP)
+		sta	zp_dest_ptr+1
+		rts
+	.endif
 
 blit_tile_half:
 		ldx	#TILE_BYTES_W/8
