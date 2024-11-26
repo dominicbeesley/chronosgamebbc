@@ -9,6 +9,7 @@
 		.export calc_screen_xy
 
 
+		.export blit_tile, blit_tile_exit	; for instrumentation purposes
 
 
 		.code
@@ -396,29 +397,6 @@ map_get:	ldy	zp_map_rle		; are we doing a run of blanks
 		lda	#TILE_BLANK
 		rts
 
-
-blit_tile_next_row:
-		clc
-		lda	zp_dest_ptr
-		adc	#<(PLAYFIELD_STRIDE-TILE_BYTES_W)
-		sta	zp_dest_ptr
-
-		lda	zp_dest_ptr+1
-		adc	#>(PLAYFIELD_STRIDE-TILE_BYTES_W)
-		bpl	@s1
-		sbc	#(>(PLAYFIELD_SIZE))-1
-@s1:		sta	zp_dest_ptr+1
-
-		rts
-
-blit_tile:	jsr	blit_tile_half
-		jsr	blit_tile_next_row
-
-		jsr	blit_tile_half
-		jmp	blit_tile_next_row
-		rts
-
-
 dest_ptr_next_row:
 
 	.ifdef NULA
@@ -444,65 +422,72 @@ dest_ptr_next_row:
 		rts
 	.endif
 
-blit_tile_half:
-		ldx	#TILE_BYTES_W/8
-@l2:
-		ldy	#7
-
-		lda	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
-		dey
-
-		lda	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
-		dey
-
-		lda	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
-		dey
-
-		lda	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
-		dey
-
-		lda	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
-		dey
-
-		lda	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
-		dey
-
-		lda	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
-		dey
-
-		lda	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
 
 
+blit_tile_next_row:
+		jsr	dest_ptr_next_row
+		
 		clc
 		lda	zp_src_ptr
-		adc	#8
+		adc	#TILE_BYTES_W
 		sta	zp_src_ptr
-		bcc	@s1
+		bcc	@s
 		inc	zp_src_ptr+1
-@s1:		
+@s:		rts
 
-		clc
-		lda	zp_dest_ptr
-		adc	#8
-		sta	zp_dest_ptr
-		bcc	@s2
-		inc	zp_dest_ptr+1
-		bpl	@s2
-		sec
-		lda	zp_dest_ptr+1
-		sbc	#>PLAYFIELD_SIZE
-		sta	zp_dest_ptr+1
-@s2:		dex
-		bne	@l2
+blit_tile:	jsr	blit_tile_half
+		jsr	blit_tile_next_row
+
+		jsr	blit_tile_half
+		jsr	blit_tile_next_row
+blit_tile_exit:	rts
+
+
+
+blit_tile_half:
+		; NOTE: this routine relies on there not being a screen wrap 
+		; in the middle of a sprite row - this should be ok as we scroll
+		; the screen 2 time between each tile address update...
+
+		ldy	#TILE_BYTES_W-1
+@l2:
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+
+		lda	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey
+		
+		bpl	@l2
 		rts
+
+
+
 get_tile_src_ptr:
 		sta	zp_src_ptr+1
 		lda	#0
