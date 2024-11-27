@@ -85,11 +85,14 @@
 		sta	zp_anime_ctr
 		sta	starflipcur
 		sta	bulletflipcur
+		sta	enemiesflipcur
 
 		lda	#STARS_COUNT*.sizeof(star)
 		sta	starflipnxt
 		lda	#BULLET_COUNT*.sizeof(bullet)
 		sta	bulletflipnxt
+		lda	#ENEMIES_COUNT*.sizeof(enemy)
+		sta	enemiesflipnxt
 
 		lda	#$7F
 		ldx	#VISTILES_SIZE
@@ -131,6 +134,7 @@ main_loop:
 		jsr	move_player0			; calculate player moves (but don't store yet)
 		jsr	move_stars
 		jsr	move_bullets
+		jsr	move_enemies
 
 		;;; TODO - there's loads of spare time here for sound effects and other
 		;;; stuff!!!
@@ -228,6 +232,13 @@ main_loop:
 		sta	bulletflipcur
 		pla
 		sta	bulletflipnxt
+
+		lda	enemiesflipcur
+		pha
+		lda	enemiesflipnxt
+		sta	enemiesflipcur
+		pla
+		sta	enemiesflipnxt
 
 		jsr	move_player1			; actually update player position
 
@@ -839,16 +850,17 @@ render_stars_and_bullets:
 
 @skiptits:
 
-	DEBUG_STRIPE $055
+	DEBUG_STRIPE $059
 
 		; render enemies
 
-		ldx	#0		
+		ldx	#ENEMIES_COUNT
+		stx	zp_tmp5
+		ldx	enemiesflipcur
 @elp:		stx	zp_cur_enemy
 		lda	enemies+enemy::status,X		; check status
 		bmi	@esk				; if -ve then is inactive
 
-		ldx	zp_tmp5				; get scroll offset calculated above
 		jsr	render_enemy
 
 @esk:		ldx	zp_cur_enemy
@@ -856,14 +868,113 @@ render_stars_and_bullets:
 		inx
 		inx
 		inx
-		cpx	#ENEMIES_COUNT*.sizeof(enemy)
-		bcc	@elp
+		dec	zp_tmp5
+		bne	@elp
 
 	DEBUG_STRIPE $000
 
 
 
 		rts
+
+;------------------------------------------------------------------
+;   _ _  _    _    _  _  _  _ _ . _  _
+;  | | |(_)\/(/_  (/_| |(/_| | ||(/__\
+;  
+;------------------------------------------------------------------
+;
+move_enemies:
+		ldy	enemiesflipcur
+		ldx	enemiesflipnxt
+		lda	#ENEMIES_COUNT
+		sta	zp_tmp5
+@lp:		lda	enemies+enemy::type,Y
+		sta	enemies+enemy::type,X
+		lda	enemies+enemy::px,Y
+		sta	enemies+enemy::px,X
+		lda	enemies+enemy::py,Y
+		sta	enemies+enemy::py,X
+		lda	enemies+enemy::status,Y
+		sta	enemies+enemy::status,X
+		bmi	@inact				; if top bit set inactive skip
+
+
+		
+		bit	@h40				; left / right
+		beq	@rt
+		; left
+		lda	enemies+enemy::px,X		; dec next X
+		sec
+		sbc	#2
+		sta	enemies+enemy::px,X		; dec next X
+		bcs	@sklr
+		; left edge collision
+		lda	enemies+enemy::status,X
+		and	#$40^$FF			; flip direction
+		sta	enemies+enemy::status,X
+		lda	#0
+		sta	enemies+enemy::px,X		; zero X
+		beq	@sklr
+@rt:		; right
+		inc	enemies+enemy::px,X		; dec next X
+		lda	enemies+enemy::px,X
+		cmp	#240
+		bcc	@sklr
+		; right edge collision
+		lda	enemies+enemy::status,X
+		ora	#$40				; flip direction
+		sta	enemies+enemy::status,X
+		lda	#239
+		sta	enemies+enemy::px,X		; zero X
+
+@sklr:
+
+
+@inact:		
+		inx
+		inx
+		inx
+		inx
+		iny
+		iny
+		iny
+		iny
+		dec	zp_tmp5
+		bne	@lp
+
+		rts
+@h40:		.byte	$40
+
+;;		ldx	#0		
+;;@elp:		lda	enemies+enemy::status,X		; check status
+;;		bmi	@esk				; if -ve then is inactive
+;;
+;;		; check bit 6
+;;		bit	a_hex40
+;;		beq	@rt				; move right
+;;		dec	enemies+enemy::px,X		; move left
+;;		bpl	@sklr
+;;		and	#$40^$FF			; clear left / right mask
+;;		sta	enemies+enemy::status,X
+;;		lda	#0
+;;		sta	enemies+enemy::px,X		; clear
+;;		beq	@sklr
+;;@rt:		inc	enemies+enemy::px,X
+;;		bpl	@sklr
+;;		ora	#$40
+;;		sta	enemies+enemy::status,X
+;;		lda	#127
+;;		sta	enemies+enemy::px,X		; clear
+;;@sklr:		
+;;
+;;@esk:		inx
+;;		inx
+;;		inx
+;;		inx
+;;		cpx	#ENEMIES_COUNT*.sizeof(enemy)
+;;		bcc	@elp
+;;a_hex40:	rts
+
 
 ;------------------------------------------------------------------
 ;   _ _  _    _    __|_ _  _ _

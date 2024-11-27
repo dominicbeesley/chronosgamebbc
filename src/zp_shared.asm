@@ -25,6 +25,8 @@
 			.exportzp starflipnxt
 			.exportzp bulletflipcur
 			.exportzp bulletflipnxt
+			.exportzp enemiesflipcur
+			.exportzp enemiesflipnxt
 
 		.zeropage
 zp_tmp:			.res 	1		; temporary
@@ -52,3 +54,5 @@ starflipcur:		.res	1		; flips between 0 and STARS_COUNT*.sizeof(star)
 starflipnxt:		.res	1		; flips between 0 and STARS_COUNT*.sizeof(star) in opposite sense of above
 bulletflipcur:		.res	1		; flips between 0 and BULLET_COUNT*.sizeof(bullet)
 bulletflipnxt:		.res	1		; flips between 0 and BULLET_COUNT*.sizeof(bullet) in opposite sense of above
+enemiesflipcur:		.res	1		; flips between 0 and ENEMY_COUNT*.sizeof(enemy)
+enemiesflipnxt:		.res	1		; flips between 0 and ENEMY_COUNT*.sizeof(enemy) in opposite sense of above

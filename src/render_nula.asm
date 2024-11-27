@@ -42,8 +42,6 @@ render_prev:	.res	REN_N_SHIFTS		; used to save previous char cell for each row
 
 		.code
 
-
-
 ;------------------------------------------------------------------
 ;  _ _  _  _| _  _   _  _  _  _ _
 ; | (/_| |(_|(/_| __(/_| |(/_| | |\/
