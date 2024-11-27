@@ -25,9 +25,6 @@ zp_height_ctr:	.res	1
 zp_src_ptr_save:.res	2
 zp_char_row:	.res	1
 
-zp_mask_cur:	.res	1	; mask for current cell
-zp_mask_pre:	.res	1	; mask for prev cell
-
 zp_next_char:	.res	1
 
 zp_cur_x:	.res	1
@@ -135,12 +132,7 @@ render_player_int:
 
 		lda	zp_cur_x		; get back X position of ship
 		and	#(REN_N_SHIFTS-1)
-
 		tax
-		lda	maskx_first,X
-		sta	zp_mask_cur
-		lda	maskx_second,X
-		sta	zp_mask_pre
 
 		lda	tbl_rr_l,X
 		sta	render_row+1
@@ -279,7 +271,7 @@ render_row:	jmp	$FFFF
 	.repeat	I, J
 		lsr	A
 	.endrepeat
-		and	zp_mask_cur
+		and	#$FF>>I
 		eor	(zp_dest_ptr),Y
 		sta	(zp_dest_ptr),Y
 
@@ -290,7 +282,7 @@ render_row:	jmp	$FFFF
 	.repeat	8-I,J
 		asl	A
 	.endrepeat
-		and	zp_mask_pre
+		and	#($FF00>>I)&$FF
 		sta	render_prev,Y
 
 
@@ -327,7 +319,7 @@ render_row:	jmp	$FFFF
 	.repeat I, J
 		lsr	A
 	.endrepeat
-		and	zp_mask_cur
+		and	#$FF>>I
 		ora	render_prev,Y
 		eor	(zp_dest_ptr),Y
 		sta	(zp_dest_ptr),Y
@@ -340,7 +332,7 @@ render_row:	jmp	$FFFF
 	.repeat 8-I,J
 		asl	A
 	.endrepeat
-		and	zp_mask_pre
+		and	#($FF00>>I)&$FF
 		sta	render_prev,Y
 
 		dey
@@ -384,22 +376,22 @@ tbl_rr_h:
 
 
 
-maskx_first:	.byte	%11111111
-		.byte	%01111111
-		.byte	%00111111
-		.byte	%00011111
-		.byte	%00001111
-		.byte	%00000111
-		.byte	%00000011
-		.byte	%00000001
-
-maskx_second:	.byte	%00000000
-		.byte	%10000000
-		.byte	%11000000
-		.byte	%11100000
-		.byte	%11110000
-		.byte	%11111000
-		.byte	%11111100
-		.byte	%11111110
-		.byte	%11111111
+;;maskx_first:	.byte	%11111111
+;;		.byte	%01111111
+;;		.byte	%00111111
+;;		.byte	%00011111
+;;		.byte	%00001111
+;;		.byte	%00000111
+;;		.byte	%00000011
+;;		.byte	%00000001
+;;
+;;maskx_second:	.byte	%00000000
+;;		.byte	%10000000
+;;		.byte	%11000000
+;;		.byte	%11100000
+;;		.byte	%11110000
+;;		.byte	%11111000
+;;		.byte	%11111100
+;;		.byte	%11111110
+;;		.byte	%11111111
 
