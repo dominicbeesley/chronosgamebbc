@@ -114,3 +114,20 @@ KEYS_FIRE =		$10
 	.importzp	starflipnxt
 	.importzp	bulletflipcur
 	.importzp	bulletflipnxt
+	.importzp	enemiesflipcur
+	.importzp	enemiesflipnxt
+
+;-------------------------------------------------------------------------------------------- 
+;   _  _  _  _ _     . _  _| _     _|_ _    _ _  _._|_ _   |_  _  _ _    _ _  _  _  _ . _  _
+;  (/_| |(/_| | |\/  || |(_|(/_><   | (_)  _\|_)| | | (/_  |_)(_|_\(/_  | | |(_||_)|_)|| |(_|
+;                /                           |                                  |  |       _|
+;-------------------------------------------------------------------------------------------- 
+; 
+
+ENEMY_SPR_BASE_IX_0	:= 26		; rocketship	1 frame
+ENEMY_SPR_BASE_IX_1	:= 27		; globe		1 frame
+ENEMY_SPR_BASE_IX_2	:= 14		; die		4
+ENEMY_SPR_BASE_IX_3	:= 18		; cube		4
+ENEMY_SPR_BASE_IX_4	:= 22		; coin		4
+ENEMY_SPR_BASE_IX_5	:= 0 		; yingyang	8
+ENEMY_SPR_BASE_IX_6     := 8            ; flippy rect   6
