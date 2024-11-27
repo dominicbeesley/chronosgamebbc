@@ -108,23 +108,17 @@ render_player:	ldx	player_x
 		lda	#1
 		sta	zp_height
 
-;;		lda	zp_anime_ctr
-;;		ror	A		;C
-;;		ror	A		;7
-;;		ror	A		;6
-;;		ror	A		;5
-;;		and	#$20
-;;		lda	#0
-;;		clc
-;;		adc	#<playersprites
-;;		sta	zp_src_ptr		
-;;		lda	#>playersprites
-;;		adc	#0
-;;		sta	zp_src_ptr+1
-
-		lda	#<playersprites
-		sta	zp_src_ptr
+		lda	zp_anime_ctr
+		ror	A		;C
+		ror	A		;7
+		ror	A		;6
+		ror	A		;5
+		and	#$20
+		clc
+		adc	#<playersprites
+		sta	zp_src_ptr		
 		lda	#>playersprites
+		adc	#0
 		sta	zp_src_ptr+1
 
 

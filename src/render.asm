@@ -8,7 +8,7 @@
 		.export render_enemy
 		.export render_player
 .ifdef DEBUG
-		.export render_exit
+		.export render_player_exit
 .endif
 
 ; private zero page
@@ -16,6 +16,8 @@
 		.zeropage
 zp_width:	.res	1
 zp_width_ctr:	.res	1
+zp_height:	.res	1
+zp_height_ctr:	.res	1
 zp_shiftX:	.res	1	; no of ror's to apply
 zp_shiftXnxt:	.res	1	; no of rol's to apply
 
@@ -76,8 +78,10 @@ render_enemy:	; calculate enemy source address
 		tax
 
 
-		lda	#4				; width of gfx
+		lda	#4				; width of gfx (in bytes)
 		sta	zp_width
+		lda	#2
+		sta	zp_height		
 		jsr	render_player_int
 
 		rts
@@ -98,13 +102,15 @@ render_player:	ldx	player_x
 		ldy	player_y
 		lda	#8
 		sta	zp_width
+		lda	#1
+		sta	zp_height
 
 		lda	zp_anime_ctr
+		; get bit 0 into bit 6
 		ror	A		;C
 		ror	A		;7
 		ror	A		;6
 		and	#$40
-		lda	#0
 		clc
 		adc	#<playersprites
 		sta	zp_src_ptr		
@@ -140,7 +146,27 @@ render_player_int:
 		lda	zp_src_ptr+1
 		sta	zp_src_ptr_save+1
 
-		; draw top char row of ship
+		lda	zp_height
+		sta	zp_height_ctr
+
+		lda	zp_dest_ptr
+		sta	zp_dest_ptr_sav
+		lda	zp_dest_ptr+1
+		sta	zp_dest_ptr_sav+1
+
+
+		; draw first char row of ship 
+@chrowlp:
+
+		lda	zp_src_ptr_save
+		sta	zp_src_ptr
+		lda	zp_src_ptr_save+1
+		sta	zp_src_ptr+1
+
+		lda	zp_dest_ptr_sav
+		sta	zp_dest_ptr
+		lda	zp_dest_ptr_sav+1
+		sta	zp_dest_ptr+1
 
 		lda	zp_cur_y
 		and	#7
@@ -148,12 +174,8 @@ render_player_int:
 		tay
 		sty	zp_char_row
 
-		lda	zp_dest_ptr
-		sta	zp_dest_ptr_sav
-		lda	zp_dest_ptr+1
-		sta	zp_dest_ptr_sav+1
 
-		jsr	@render_row
+		jsr	render_row
 
 		; skip rows in source we've already plotted
 		sec
@@ -165,30 +187,45 @@ render_player_int:
 		sta	zp_src_ptr+1
 
 
-		lda	zp_char_row
-		eor	#7
-		sta	zp_char_row
-		beq	@render_exit
-		dec	zp_char_row
 
 		; move to next char row
 		lda	zp_dest_ptr_sav
-		adc	#<PLAYFIELD_STRIDE
 		and	#$F8				; move to first row in cell
 		sta	zp_dest_ptr
-		lda	zp_dest_ptr_sav+1
-		adc	#>PLAYFIELD_STRIDE
+		ldx	zp_dest_ptr_sav+1
+		inx
+		bpl	@sw1
+		ldx 	#>PLAYFIELD_TOP
+@sw1:		inx
 		bpl	@sw
-		sec
-		sbc	#>PLAYFIELD_SIZE
-@sw:		sta	zp_dest_ptr+1
+		ldx 	#>PLAYFIELD_TOP
+@sw:		stx zp_dest_ptr+1
+		stx 	zp_dest_ptr_sav+1
 
-.ifdef DEBUG
-		jsr	@render_row			; instrumentation - fall through normally
-@render_exit:	rts					
-.endif
+		lda	zp_char_row
+		eor	#7
+		sta	zp_char_row
+		beq	@skr2
+		dec	zp_char_row
+
+		jsr 	render_row
+@skr2:		lda	zp_width
+		asl	A
+		asl	A
+		asl	A
+		adc	zp_src_ptr_save
+		sta	zp_src_ptr_save
+		lda	zp_src_ptr_save+1
+		adc	#0
+		sta	zp_src_ptr_save+1
+		dec	zp_height_ctr
+		bne	@chrowlp
+
+render_player_exit:	
+		rts		
+
 		
-@render_row:	lda	zp_width				; width
+render_row:	lda	zp_width				; width
 		sta	zp_width_ctr
 		sta	zp_first_col				; mark first column
 
@@ -310,9 +347,6 @@ render_player_int:
 
 @r:		rts
 
-.ifdef DEBUG
-render_exit = @render_exit
-.endif
 
 		.zeropage
 render_prev:	.res	8		; used to save previous char cell for each row
