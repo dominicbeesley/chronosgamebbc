@@ -195,8 +195,8 @@ render_player_int:
 render_player_exit:	
 		rts					
 		
-render_row:	jmp	$FFFF
 
+render_row:	jmp	$FFFF					; indirect self-modify jump
 
 	.macro	NEXT_DEST_CELL
 		.local @s33
@@ -347,22 +347,5 @@ tbl_rr_h:
 
 
 
-;;maskx_first:	.byte	%11111111
-;;		.byte	%01111111
-;;		.byte	%00111111
-;;		.byte	%00011111
-;;		.byte	%00001111
-;;		.byte	%00000111
-;;		.byte	%00000011
-;;		.byte	%00000001
-;;
-;;maskx_second:	.byte	%00000000
-;;		.byte	%10000000
-;;		.byte	%11000000
-;;		.byte	%11100000
-;;		.byte	%11110000
-;;		.byte	%11111000
-;;		.byte	%11111100
-;;		.byte	%11111110
-;;		.byte	%11111111
+
 

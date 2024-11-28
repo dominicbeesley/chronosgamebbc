@@ -11,6 +11,9 @@
 		.export render_player_exit
 .endif
 
+REN_N_SHIFTS	:=	4		; number of shifts (max) 4 for mode 1, 8 for mode 4
+
+
 ; private zero page
 
 		.zeropage
@@ -18,22 +21,19 @@ zp_width:	.res	1
 zp_width_ctr:	.res	1
 zp_height:	.res	1
 zp_height_ctr:	.res	1
-zp_shiftX:	.res	1	; no of ror's to apply
-zp_shiftXnxt:	.res	1	; no of rol's to apply
 
 zp_src_ptr_save:.res	2
 zp_char_row:	.res	1
-
-zp_mask_cur:	.res	1	; mask for current cell
-zp_mask_pre:	.res	1	; mask for prev cell
 
 zp_next_char:	.res	1
 
 zp_cur_x:	.res	1
 zp_cur_y:	.res	1
-zp_first_col:	.res	1
 
 zp_dest_ptr_sav:.res	2
+
+render_prev:	.res	REN_N_SHIFTS		; used to save previous char cell for each row
+
 
 		.data
 
@@ -98,19 +98,13 @@ render_player_int:
 		jsr	calc_screen_xy
 
 		lda	zp_cur_x		; get back X position of ship
-		and	#3			
-		sta	zp_shiftX		; store amount to shift by in zp_shiftX
-
+		and	#(REN_N_SHIFTS-1)
 		tax
-		lda	maskx_first,X
-		sta	zp_mask_cur
-		lda	maskx_second,X
-		sta	zp_mask_pre
 
-		lda	#4
-		sec
-		sbc	zp_shiftX
-		sta	zp_shiftXnxt
+		lda	tbl_rr_l,X
+		sta	render_row+1
+		lda	tbl_rr_h,X
+		sta	render_row+2
 
 		lda	zp_src_ptr
 		sta	zp_src_ptr_save
@@ -196,119 +190,130 @@ render_player_exit:
 		rts		
 
 		
-render_row:	lda	zp_width				; width
-		sta	zp_width_ctr
-		sta	zp_first_col				; mark first column
+render_row:	jmp	$FFFF					; indirect self-modify jump
 
-;;		lda	#0
-;;		sta	render_prev
-;;		sta	render_prev+1
-;;		sta	render_prev+2
-;;		sta	render_prev+3
-;;		sta	render_prev+4
-;;		sta	render_prev+5
-;;		sta	render_prev+6
-;;		sta	render_prev+7
-
-@cloop:		
-		
-		ldy	zp_char_row
-
-		ldx	zp_shiftX
-		bne	@shifted
-
-@rloop:		lda	(zp_dest_ptr),Y
-		eor	(zp_src_ptr),Y
-		sta	(zp_dest_ptr),Y
-		dey	
-		bpl	@rloop
-		bmi	@sk
-
-
-@shifted:	
-		lda	zp_first_col
-		beq	@rorn
-		; if this is first column we don't need to shift in previous col's data
-
-@ror0:		ldx	zp_shiftX			; we need to add an X shift
-		lda	(zp_src_ptr),Y	
-@shlp0:		lsr	A
-		dex
-		bne	@shlp0
-		and	zp_mask_cur
-		eor	(zp_dest_ptr),Y
-		sta	(zp_dest_ptr),Y
-
-		; do left shift. This is actually quicker than combining with the ror above
-		; for worst case as 7*ror zp is 35 inst instead of 1 rol = 2 + loop overhead
-
-		lda	(zp_src_ptr),Y	
-		ldx	zp_shiftXnxt
-@shlp20:	asl	A
-		dex
-		bne	@shlp20
-
-		and	zp_mask_pre
-		sta	render_prev,Y
-		dey
-		bpl	@ror0
-		bmi	@sk
-
-
-@rorn:		ldx	zp_shiftX			; we need to add an X shift
-		lda	(zp_src_ptr),Y	
-@shlp:		lsr	A
-		dex
-		bne	@shlp
-		and	zp_mask_cur
-		ora	render_prev,Y
-		eor	(zp_dest_ptr),Y
-		sta	(zp_dest_ptr),Y
-
-		; do left shift. This is actually quicker than combining with the ror above
-		; for worst case as 7*ror zp is 35 inst instead of 1 rol = 2 + loop overhead
-
-		lda	(zp_src_ptr),Y	
-		ldx	zp_shiftXnxt
-@shlp2:		asl	A
-		dex
-		bne	@shlp2
-
-		and	zp_mask_pre
-		sta	render_prev,Y
-		dey
-		bpl	@rorn
-
-
-@sk:		
+	.macro	NEXT_DEST_CELL
+		.local @s33
+		clc
+		lda	zp_dest_ptr
+		adc	#8
+		sta	zp_dest_ptr
+		bcc	@s33
+		inc	zp_dest_ptr+1
+		bpl	@s33
+		lda	#>PLAYFIELD_TOP
+		sta	zp_dest_ptr+1
+@s33:		
+	.endmacro
+	
+	.macro NEXT_SRC_CELL
+		.local @s2
 		clc
 		lda	zp_src_ptr
 		adc	#8
 		sta	zp_src_ptr
 		bcc	@s2
 		inc	zp_src_ptr+1		
-@s2:
+@s2:	.endmacro	
+	
 
-		clc
-		lda	zp_dest_ptr
-		adc	#8
-		sta	zp_dest_ptr
-		lda	zp_dest_ptr+1
-		adc	#0
-		bpl	@s33
-		sec
-		sbc	#>PLAYFIELD_SIZE
-@s33:		sta	zp_dest_ptr+1
 
-		lda	#0
-		sta	zp_first_col
+	.repeat REN_N_SHIFTS, I
+		; for each possible shift generate a render_row routine
+
+.ident(.sprintf("render_row%d", I)):	
+		lda	zp_width				; width
+		sta	zp_width_ctr
+
+	.if I<>0
+		; there will always be a first column for a shifted sprite
+		; that is different (no previous data to shift in)
+		; do that here as a special case
+
+		ldy	zp_char_row
+@ror0:		lda	(zp_src_ptr),Y	
+		; shift right
+	.repeat	I, J
+		lsr	A
+	.endrepeat
+		and	#($F>>I) * $11
+		eor	(zp_dest_ptr),Y
+		sta	(zp_dest_ptr),Y
+
+		; do left shift. This is actually quicker than combining with the ror above
+		; for worst case as 7*ror zp is 35 inst instead of 1 rol = 2 + loop overhead
+
+		lda	(zp_src_ptr),Y	
+	.repeat	REN_N_SHIFTS-I,J
+		asl	A
+	.endrepeat
+		and	#(($F0>>I) & $F)*$11
+		sta	render_prev,Y
+
+
+		dey
+		bpl	@ror0
+
+		NEXT_SRC_CELL
+		NEXT_DEST_CELL
+
+
+		dec	zp_width_ctr		;; assumes > 1
+
+	.endif
+
+@cloop:		
+		
+		ldy	zp_char_row
+
+	.if I=0
+		; simple render with no shift
+@rloop:		lda	(zp_dest_ptr),Y
+		eor	(zp_src_ptr),Y
+		sta	(zp_dest_ptr),Y
+		dey	
+		bpl	@rloop
+		bmi	@sk
+	.else
+		; I contains number of positions to shift to right
+
+
+
+
+@rorn:		lda	(zp_src_ptr),Y	
+	.repeat I, J
+		lsr	A
+	.endrepeat
+		and	#($F>>I) * $11
+		ora	render_prev,Y
+		eor	(zp_dest_ptr),Y
+		sta	(zp_dest_ptr),Y
+
+
+		; do left shift. This is actually quicker than combining with the ror above
+		; for worst case as 7*ror zp is 35 inst instead of 1 rol = 2 + loop overhead
+
+		lda	(zp_src_ptr),Y	
+	.repeat REN_N_SHIFTS-I,J
+		asl	A
+	.endrepeat
+		and	#(($F0>>I) & $F) * $11
+		sta	render_prev,Y
+
+		dey
+		bpl	@rorn
+	.endif ; shift/no shift
+@sk:		
+		NEXT_SRC_CELL
+
+		NEXT_DEST_CELL
+
 		dec	zp_width_ctr
 		bne	@cloop
 
-		lda	zp_shiftX
-		beq	@r
+	.if I<>0
 
-		; do final column
+		; do extra final column containing spilled bits from previous cell
 		ldy	zp_char_row
 @ll:		lda	render_prev,Y
 		eor	(zp_dest_ptr),Y
@@ -316,21 +321,25 @@ render_row:	lda	zp_width				; width
 		dey
 		bpl	@ll
 
-@r:		rts
+	.endif
+		rts
+	.endrepeat
 
 
-		.zeropage
-render_prev:	.res	8		; used to save previous char cell for each row
 
 		.rodata
 
-maskx_first:	.byte	%11111111
-		.byte	%01110111
-		.byte	%00110011
-		.byte	%00010001
-maskx_second:	.byte	%00000000
-		.byte	%10001000		
-		.byte	%11001100
-		.byte	%11101110
+tbl_rr_l:	
+	.repeat	REN_N_SHIFTS, I
+		.byte	<.ident(.sprintf("render_row%d", I))
+	.endrepeat
+tbl_rr_h:	
+	.repeat	REN_N_SHIFTS, I
+		.byte	>.ident(.sprintf("render_row%d", I))
+	.endrepeat
+
+
+
+
 
 
