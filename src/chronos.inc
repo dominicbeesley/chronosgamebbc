@@ -61,18 +61,6 @@ ENEMIES_COUNT	:= 3
 
 .endif
 
-	.ifdef NULA
-ES_SIZE := 32
-	.else
-ES_SIZE := 64
-	.endif
-
-; ENEMY_SPRITE_OFFSETS
-ESO_T0_BALL	:= 27*ES_SIZE
-ESO_T1_ROCKET	:= 26*ES_SIZE
-ESO_T2_3_4	:= 14*ES_SIZE
-ESO_T0_5	:= 7 *ES_SIZE
-ESO_T0_6	:= 0 *ES_SIZE
 
 NKEYS = 		5
 KEYS_DOWN =		$01
@@ -109,6 +97,7 @@ KEYS_FIRE =		$10
 	.importzp	zp_anime_ctr
 	.importzp	zp_anime_ctr6
 	.importzp	zp_cur_enemy
+	.importzp	zp_cur_enemy_ctr
 	.importzp	score
 	.importzp	starflipcur
 	.importzp	starflipnxt
@@ -124,6 +113,13 @@ KEYS_FIRE =		$10
 ;-------------------------------------------------------------------------------------------- 
 ; 
 
+	.ifdef NULA
+ES_SIZE := 32
+	.else
+ES_SIZE := 64
+	.endif
+
+
 ENEMY_SPR_BASE_IX_0	:= 26		; rocketship	1 frame
 ENEMY_SPR_BASE_IX_1	:= 27		; globe		1 frame
 ENEMY_SPR_BASE_IX_2	:= 14		; die		4
@@ -131,3 +127,4 @@ ENEMY_SPR_BASE_IX_3	:= 18		; cube		4
 ENEMY_SPR_BASE_IX_4	:= 22		; coin		4
 ENEMY_SPR_BASE_IX_5	:= 0 		; yingyang	8
 ENEMY_SPR_BASE_IX_6     := 8            ; flippy rect   6
+

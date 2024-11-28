@@ -20,6 +20,7 @@
 			.exportzp zp_anime_ctr
 			.exportzp zp_anime_ctr6
 			.exportzp zp_cur_enemy
+			.exportzp zp_cur_enemy_ctr
 			.exportzp score
 			.exportzp starflipcur
 			.exportzp starflipnxt
@@ -49,6 +50,7 @@ zp_scroll_offs: 	.res	1		; the scroll offset to apply when rendering (or un-rend
 zp_anime_ctr:		.res	1		; index for animating enemies etc
 zp_anime_ctr6:		.res	1		; index for animating enemies etc (modulo 6)
 zp_cur_enemy:		.res	1		; index for currently processing enemy
+zp_cur_enemy_ctr:	.res	1		; counts down when processing enemies from 4..1
 score:			.res	4		; score in little-endian BCD
 starflipcur:		.res	1		; flips between 0 and STARS_COUNT*.sizeof(star)
 starflipnxt:		.res	1		; flips between 0 and STARS_COUNT*.sizeof(star) in opposite sense of above

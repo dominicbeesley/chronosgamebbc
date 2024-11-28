@@ -45,38 +45,9 @@ zp_dest_ptr_sav:.res	2
 ; | (/_| |(_|(/_| __(/_| |(/_| | |\/
 ;                                 /
 ;------------------------------------------------------------------
-; on entry X contains the pixel offset to add (due to sub-byte scrolling for NULA or not)
+; render an enemy at (X,Y)
+; zp_src_ptr contains sprite pointer
 render_enemy:	; calculate enemy source address
-
-
-		LDXY	enemysprites
-
-		lda	#0
-		sta	zp_cur_x
-
-		lda	zp_anime_ctr
-		and	#7
-
-		lsr	A
-		ror	zp_cur_x
-		lsr	A
-		ror	zp_cur_x
-
-		sta	zp_cur_y
-		txa
-		adc	zp_cur_x
-		tax
-		tya
-		adc	zp_cur_y
-
-		stx	zp_src_ptr
-		sta	zp_src_ptr+1
-
-		ldx	zp_cur_enemy
-		lda	enemies+enemy::px,X
-		ldy	enemies+enemy::py,X
-		tax
-
 
 		lda	#4				; width of gfx (in bytes)
 		sta	zp_width

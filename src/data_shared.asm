@@ -150,9 +150,9 @@ player_keys:		.byte	0
 		; the following data is used for sub-screens
 
 
-enemies:	.byte	$30, $20, $40, $0
-		.byte	$41, $62, $20, $1
-		.byte	$52, $75, $60, $2
+enemies:	.byte	$30, $20, $40, $2
+		.byte	$41, $62, $20, $3
+		.byte	$52, $45, $60, $4
 enemies_alt:	.res 	ENEMIES_COUNT*.sizeof(enemy)	; next enemies
 
 

@@ -855,11 +855,18 @@ render_stars_and_bullets:
 		; render enemies
 
 		ldx	#ENEMIES_COUNT
-		stx	zp_tmp5
+		stx	zp_cur_enemy_ctr
 		ldx	enemiesflipcur
 @elp:		stx	zp_cur_enemy
 		lda	enemies+enemy::status,X		; check status
 		bmi	@esk				; if -ve then is inactive
+
+		jsr	enemy_sprite_pointer
+
+		ldx	zp_cur_enemy
+		lda	enemies+enemy::px,X
+		ldy	enemies+enemy::py,X
+		tax
 
 		jsr	render_enemy
 
@@ -868,14 +875,123 @@ render_stars_and_bullets:
 		inx
 		inx
 		inx
-		dec	zp_tmp5
+		dec	zp_cur_enemy_ctr
 		bne	@elp
 
 	DEBUG_STRIPE $000
 
-
-
 		rts
+
+;------------------------------------------------------------------
+;   _  _  _  _ _      _ _  _._|_ _    _  _ . _ _|_ _  _
+;  (/_| |(/_| | |\/___\|_)| | | (/___|_)(_)|| | | (/_|
+;                /     |             |
+;------------------------------------------------------------------
+;  
+; Calculate the src_pointer for the enemy (index in X)
+
+enemy_sprite_pointer:
+
+		lda	enemies+enemy::type,X
+		beq	@enemy0
+		cmp	#1
+		beq	@enemy1
+		cmp	#5
+		bcc	@enemy2_4
+		beq	@enemy5
+		cmp	#6
+		beq	@enemy6
+
+@enemy0:	
+	; type 0 is rocketship
+		LDXY	enemysprites+ES_SIZE*ENEMY_SPR_BASE_IX_0
+@srcptrXY:	stx	zp_src_ptr
+		sty	zp_src_ptr+1
+		rts
+@enemy1:
+	; type 1 is ball
+		LDXY	enemysprites+ES_SIZE*ENEMY_SPR_BASE_IX_1
+		bne	@srcptrXY
+@enemy2_4:
+	; type 2..4 (die, cube, coin)
+		sbc	#1			; subtract 2 to make 0..2
+		asl	A
+		asl	A			; multiply by 4 (4 frames each)
+		sta	zp_tmp2			; remember (type-2)*4
+
+		lda	zp_cur_enemy_ctr	; add enemy index so they're all different
+		clc
+		adc	zp_anime_ctr
+		and	#3
+		ora	zp_tmp2			; add type offset from above
+		sta	zp_tmp
+		lda	#0
+
+		lsr	zp_tmp
+		ror	A
+		lsr	zp_tmp
+		ror	A
+	.ifdef NULA
+		lsr	zp_tmp
+		ror	A
+	.endif
+		adc	#<(enemysprites+ES_SIZE*ENEMY_SPR_BASE_IX_2)
+		sta	zp_src_ptr
+		lda	#>(enemysprites+ES_SIZE*ENEMY_SPR_BASE_IX_2)
+		adc	zp_tmp
+		sta	zp_src_ptr+1
+	
+		rts
+
+@enemy6:
+	; type 6 is flippy add animation modulo 6
+		lda	zp_anime_ctr6
+		sta	zp_tmp
+		lda	#0	
+
+		lsr	zp_tmp
+		ror	A
+		lsr	zp_tmp
+		ror	A
+	.ifdef NULA
+		lsr	zp_tmp
+		ror	A
+	.endif
+		adc	#<(enemysprites+ES_SIZE*ENEMY_SPR_BASE_IX_6)
+		sta	zp_src_ptr
+		lda	#>(enemysprites+ES_SIZE*ENEMY_SPR_BASE_IX_6)
+		adc	zp_tmp
+		sta	zp_src_ptr+1
+	
+		rts
+
+
+@enemy5:
+	; type 5 is yingyang add animation modulo 8
+
+		lda	zp_cur_enemy_ctr	; add enemy index so they're all different
+		clc
+		adc	zp_anime_ctr
+		and	#7
+		sta	zp_tmp
+		lda	#0
+
+		lsr	zp_tmp
+		ror	A
+		lsr	zp_tmp
+		ror	A
+	.ifdef NULA
+		lsr	zp_tmp
+		ror	A
+	.endif
+		adc	#<(enemysprites+ES_SIZE*ENEMY_SPR_BASE_IX_5)
+		sta	zp_src_ptr
+		lda	#>(enemysprites+ES_SIZE*ENEMY_SPR_BASE_IX_5)
+		adc	zp_tmp
+		sta	zp_src_ptr+1
+	
+		rts
+
 
 ;------------------------------------------------------------------
 ;   _ _  _    _    _  _  _  _ _ . _  _
