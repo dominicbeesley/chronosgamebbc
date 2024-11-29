@@ -28,8 +28,10 @@
 			.exportzp bulletflipnxt
 			.exportzp enemiesflipcur
 			.exportzp enemiesflipnxt
+			.exportzp zp_seed
 
 		.zeropage
+zp_seed:		.res	2		; rnd number generator
 zp_tmp:			.res 	1		; temporary
 zp_tmp2:		.res 	1		; temporary
 zp_tmp3:		.res 	1		; temporary

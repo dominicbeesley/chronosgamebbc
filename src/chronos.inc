@@ -105,6 +105,7 @@ KEYS_FIRE =		$10
 	.importzp	bulletflipnxt
 	.importzp	enemiesflipcur
 	.importzp	enemiesflipnxt
+	.importzp	zp_seed
 
 ;-------------------------------------------------------------------------------------------- 
 ;   _  _  _  _ _     . _  _| _     _|_ _    _ _  _._|_ _   |_  _  _ _    _ _  _  _  _ . _  _

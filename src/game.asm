@@ -73,6 +73,11 @@
 		sta	SHEILA_NULA_CTLAUX		; reset nula stuff
 	.endif
 
+		lda	#$12
+		sta	zp_seed
+		lda	#$34
+		sta	zp_seed+1
+
 		jsr	init_irq
 
 
@@ -136,8 +141,13 @@ main_loop:
 		jsr	move_bullets
 		jsr	move_enemies
 
-		;;; TODO - there's loads of spare time here for sound effects and other
-		;;; stuff!!!
+		lda	zp_cycle
+		clc
+		adc	#7
+		and	#31
+		bne	@nospawn
+		jsr	spawn_enemies			; every 32nd cycle
+@nospawn:
 
 		jsr	wait_midframe			; wait for middle of frame i.e. end of play field
 
@@ -203,6 +213,7 @@ main_loop:
 		bne	@nottiles
 
 		; every 16th frame do the move to the next tiles column
+		;TODO spread these out on different 16th's ?
 
 		jsr	next_tiles_column		; move to next tiles column
 		jsr	check_and_fire			; check for fire TODO: move to free time slot above - need to mark pending fires to avoid pre-rendering
@@ -995,6 +1006,48 @@ enemy_sprite_pointer:
 
 ;------------------------------------------------------------------
 ;   _ _  _    _    _  _  _  _ _ . _  _
+;  _\|_)(_|VV| |__(/_| |(/_| | ||(/__\
+;    |
+;------------------------------------------------------------------
+;
+; check for an empty slot and spawn an enemy
+; TODO: this should be zone specific
+
+spawn_enemies:
+		ldx	enemiesflipnxt
+		lda	#ENEMIES_COUNT
+		sta	zp_cur_enemy_ctr
+@lp:		lda	enemies+enemy::status,X
+		bpl	@noslot
+
+		lda	#240
+		sta	enemies+enemy::px,X
+
+		jsr	rndA
+		and	#$70				; enemies must be on a block boundary to start with
+		sta	enemies+enemy::py,X
+
+		jsr	rndA
+		and	#7
+		sta	enemies+enemy::type,X
+
+		lda	#0
+		sta	enemies+enemy::status,X
+		rts					; only do one!
+
+
+@noslot:	inx
+		inx
+		inx
+		inx
+		dec	zp_cur_enemy_ctr
+		bne	@lp
+		rts		
+		
+
+
+;------------------------------------------------------------------
+;   _ _  _    _    _  _  _  _ _ . _  _
 ;  | | |(_)\/(/_  (/_| |(/_| | ||(/__\
 ;  
 ;------------------------------------------------------------------
@@ -1003,7 +1056,7 @@ move_enemies:
 		ldy	enemiesflipcur
 		ldx	enemiesflipnxt
 		lda	#ENEMIES_COUNT
-		sta	zp_tmp5
+		sta	zp_cur_enemy_ctr
 @lp:		lda	enemies+enemy::type,Y
 		sta	enemies+enemy::type,X
 		lda	enemies+enemy::px,Y
@@ -1015,36 +1068,13 @@ move_enemies:
 		bmi	@inact				; if top bit set inactive skip
 
 
-		
-		bit	@h40				; left / right
-		beq	@rt
-		; left
-		lda	enemies+enemy::px,X		; dec next X
-		sec
-		sbc	#2
-		sta	enemies+enemy::px,X		; dec next X
-		bcs	@sklr
-		; left edge collision
-		lda	enemies+enemy::status,X
-		and	#$40^$FF			; flip direction
-		sta	enemies+enemy::status,X
-		lda	#0
-		sta	enemies+enemy::px,X		; zero X
-		beq	@sklr
-@rt:		; right
-		inc	enemies+enemy::px,X		; dec next X
-		lda	enemies+enemy::px,X
-		cmp	#240
-		bcc	@sklr
-		; right edge collision
-		lda	enemies+enemy::status,X
-		ora	#$40				; flip direction
-		sta	enemies+enemy::status,X
-		lda	#239
-		sta	enemies+enemy::px,X		; zero X
+		dec	enemies+enemy::px,X		
+		beq	@die
+		dec	enemies+enemy::px,X		
+		bne	@inact
 
-@sklr:
-
+@die:		lda	#$FF
+		sta	enemies+enemy::status,X
 
 @inact:		
 		inx
@@ -1055,42 +1085,10 @@ move_enemies:
 		iny
 		iny
 		iny
-		dec	zp_tmp5
+		dec	zp_cur_enemy_ctr
 		bne	@lp
 
 		rts
-@h40:		.byte	$40
-
-;;		ldx	#0		
-;;@elp:		lda	enemies+enemy::status,X		; check status
-;;		bmi	@esk				; if -ve then is inactive
-;;
-;;		; check bit 6
-;;		bit	a_hex40
-;;		beq	@rt				; move right
-;;		dec	enemies+enemy::px,X		; move left
-;;		bpl	@sklr
-;;		and	#$40^$FF			; clear left / right mask
-;;		sta	enemies+enemy::status,X
-;;		lda	#0
-;;		sta	enemies+enemy::px,X		; clear
-;;		beq	@sklr
-;;@rt:		inc	enemies+enemy::px,X
-;;		bpl	@sklr
-;;		ora	#$40
-;;		sta	enemies+enemy::status,X
-;;		lda	#127
-;;		sta	enemies+enemy::px,X		; clear
-;;@sklr:		
-;;
-;;@esk:		inx
-;;		inx
-;;		inx
-;;		inx
-;;		cpx	#ENEMIES_COUNT*.sizeof(enemy)
-;;		bcc	@elp
-;;a_hex40:	rts
-
 
 ;------------------------------------------------------------------
 ;   _ _  _    _    __|_ _  _ _
@@ -1508,4 +1506,36 @@ renderBCD2:	pha
 		ldy	zp_tmp
 		rts
 
+	; rnd number generator taken from https://github.com/bbbradsmith/prng_6502/blob/master/galois16.s
+
+rndA:
+		lda	zp_seed+1
+		tay 			; store copy of high byte
+		; compute seed+1 ($39>>1 = %11100)
+		lsr	A		; shift to consume zeroes on left...
+		lsr	A
+		lsr	A
+		sta	zp_seed+1	; now recreate the remaining bits in reverse order... %111
+		lsr
+		eor	zp_seed+1
+		lsr
+		eor	zp_seed+1
+		eor	zp_seed+0	; recombine with original low byte
+		sta	zp_seed+1
+		; compute zp_seed+0 ($39 = %111001)
+		tya			; original high byte
+		sta	zp_seed+0
+		asl
+		eor	zp_seed+0
+		asl
+		eor	zp_seed+0
+		asl
+		asl
+		asl
+		eor	zp_seed+0
+		sta	zp_seed+0
+		rts
+
+
 		.end
+
