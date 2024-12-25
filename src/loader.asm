@@ -19,6 +19,23 @@ zp_tmp3:	.res	1
 zp_ptr:		.res	2
 		.code
 		
+		; *SHADOW OFF
+		lda 	#114
+		ldx 	#1
+		jsr 	OSBYTE
+
+		; check for TUBE
+		lda 	#$EA
+		ldx	#$0
+		ldy	#$FF
+		jsr 	OSBYTE
+		cpy	#0	
+		bne	@oktube
+		jmp	badtube
+
+@oktube:	
+
+
 		lda	#22
 		jsr	OSWRCH
 		lda	#7
@@ -269,6 +286,10 @@ PrintI:		pla
 		tya
 		pha
 		rts	
+
+badtube:	jsr	PrintI
+		.byte	"Sorry, this game doesn't run on the TUBE",13,10,0
+		rts
 
 		.rodata
 copycmp:	.byte	0,"(C)"
