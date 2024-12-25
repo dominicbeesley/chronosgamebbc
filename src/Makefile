@@ -1,7 +1,8 @@
 		include ../Makefile.defs
 
 AS=ca65 
-ASFLAGS=--auto-import -I $(TOP)/includes -I $(BUILD) -DDEBUG -DDO_DEBUG_STRIPES -DDO_DEBUG_USERPORT
+#ASFLAGS=--auto-import -I $(TOP)/includes -I $(BUILD) -DDEBUG -DDO_DEBUG_STRIPES -DDO_DEBUG_USERPORT
+ASFLAGS=--auto-import -I $(TOP)/includes -I $(BUILD)
 LD=ld65
 INCS=$(wildcard $(TOP)/includes/*.inc) $(wildcard ./*.inc) 
 DEPS=$(INCS) 

@@ -55,6 +55,7 @@ CRTC_R0_H_TOT   := 0
 CRTC_R1_H_DISP	:= 1
 CRTC_R2_H_SYNC	:= 2
 CRTC_R4_V_TOT	:= 4
+CRTC_R6_V_DISP	:= 6
 CRTC_R7_V_SYNC	:= 7
 CRTC_R12_ADDR   := 12
 
@@ -110,6 +111,7 @@ SCREEN_H_SYNC		:= 90
 	.endif
 
 PLAYFIELD_V_TOT		:= 16
+PLAYFIELD_V_DISP		:= 32
 	.ifdef NULA
 PLAYFIELD_H_DISP	:= 32
 	.else
@@ -118,6 +120,11 @@ PLAYFIELD_H_DISP	:= 64
 
 LOGO_V_TOT		:= SCREEN_V_TOT-PLAYFIELD_V_TOT		; goes to end of screen
 LOGO_V_SYNC		:= SCREEN_V_SYNC-PLAYFIELD_V_TOT
+	.ifdef DEBUG
+LOGO_V_DISP		:= 16
+	.else
+LOGO_V_DISP		:= 6
+	.endif
 	.ifdef NULA
 LOGO_H_DISP		:= 18
 LOGO_H_ADJ		:= 9					; this is used to center the logo area
@@ -260,21 +267,12 @@ my_irq1:	cld				; ensure decimal mode cleared
 		lda	#LOGO_V_TOT-1
 		sta	sheila_CRTC_dat		
 
+
 		; TODO move out of IRQ handler - can be set and forget as we wont reach this point in playfield
 		lda	#CRTC_R7_V_SYNC
 		sta	sheila_CRTC_reg
 		lda	#LOGO_V_SYNC
 		sta	sheila_CRTC_dat		
-		
-		DEBUG_STRIPE	$F0F
-		lda	#$00
-		sta	sheila_VIDPROC_pal
-		jsr	wait_SSS
-		jsr	wait_SSS
-		jsr	wait_SSS
-		lda	#$0F
-		sta	sheila_VIDPROC_pal
-		DEBUG_STRIPE	$000
 
 		jmp	@out
 		
@@ -307,6 +305,8 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_reg
 		lda	#>(chronospipe/8)
 		sta	sheila_CRTC_dat
+
+
 
 		; wait a character row...we should be now in blanking area just after last scan line of first part		
 		jsr	wait_PFS		; this number arrived at by experimentation....
