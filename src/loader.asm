@@ -307,7 +307,7 @@ osfilechronos:	.word	osfilen_chronos
 		.dword	0
 		.dword	0
 		.dword	0
-osfilen_chronos:.byte   "CHRONOS",13
+osfilen_chronos:.byte   "CHRONON",13
 
 		.segment	"SPLASH"
 		.incbin 	"splash.mo7"
