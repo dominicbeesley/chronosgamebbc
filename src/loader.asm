@@ -30,7 +30,7 @@ zp_ptr:		.res	2
 		ldy	#$FF
 		jsr 	OSBYTE
 		cpy	#0	
-		bne	@oktube
+		beq	@oktube
 		jmp	badtube
 
 @oktube:	
