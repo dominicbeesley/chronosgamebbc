@@ -10,7 +10,7 @@ my ($fn_bin, $fn_asm) = @ARGV;
 
 ($fn_bin and -e $fn_bin) or Usage("Cannot find capture file \"$fn_bin\"");
 
-my $STREAM_X_START = 0xEBE4;	# IX stream start
+my $STREAM_X_START = 0x70E4;	# IX stream start
 my $bin = ();
 
 open (my $fh_bin, "<", $fn_bin) or Usage("Cannot open \"$fn_bin\" for input : $!");
