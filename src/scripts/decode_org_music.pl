@@ -11,6 +11,7 @@ my ($fn_bin, $fn_asm) = @ARGV;
 ($fn_bin and -e $fn_bin) or Usage("Cannot find capture file \"$fn_bin\"");
 
 my $STREAM_X_START = 0x70E4;	# IX stream start
+my $STREAM_X_START_RUN = 0xEBE4;# IX stream start when copied to RAM
 my $bin = ();
 
 open (my $fh_bin, "<", $fn_bin) or Usage("Cannot open \"$fn_bin\" for input : $!");
@@ -31,20 +32,22 @@ print $fh_asm	"\t\t.include \"music.inc\"\n";
 my $offs = $STREAM_X_START;
 my $echo = 0;
 print $fh_asm	"\t\t.export music_x_stream\n";
-printf $fh_asm	"music_x_stream:\t; X stream starts at \$%04X\n", $offs;
+printf $fh_asm	"music_x_stream:\t; X stream starts at \$%04X [\$%04X]\n", $STREAM_X_START, $STREAM_X_START_RUN;
 while ($offs < 0x10000) {
-
+	
+	my $s_offs = $offs;
+	my $sh_offs = $offs - $STREAM_X_START + $STREAM_X_START_RUN;
 	my $x_c = @bin[$offs++];
 
 	if ($x_c == 0x00) {
-		printf $fh_asm "\t\tMX_END\n";
+		printf $fh_asm "\t\tMX_END\t\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		printf $fh_asm "\t\t; End of X stream found at \$0x%04X\n\n", $offs;
 		last;
 	} elsif ($x_c == 0x01) {
-		printf $fh_asm "\t\tMX_LOOP_END\n\n"
+		printf $fh_asm "\t\tMX_LOOP_END\t\t\t; \$%04X [\$%04X]\n\n", $s_offs, $sh_offs;
 	} elsif ($x_c == 0x02) {
 		my $x_r = @bin[$offs++];
-		printf $fh_asm "\n\t\tMX_LOOP_START\t%d\n", $x_r + 1;
+		printf $fh_asm "\n\t\tMX_LOOP_START\t%d;\t\t; \$%04X [\$%04X]\n", $x_r + 1, $s_offs, $sh_offs;
 		if (!@bin[$offs]) {
 			printf $fh_asm "\t\tMX_RESET_IY_5C3A\t\t; TODO: check this out?\n";
 			$offs++;
@@ -57,31 +60,33 @@ while ($offs < 0x10000) {
 			my $x_p2 = @bin[$offs++];
 			my $x_p3 = @bin[$offs++];
 
-			printf $fh_asm "\t\tMX_CMD_ENVELOPE\t%d, %d, %d, %d\n", $x_p0, $x_p1, $x_p2, $x_p3;
+			printf $fh_asm "\t\tMX_CMD_ENVELOPE\t%d, %d, %d, %d\t; \$%04X [\$%04X]\n", $x_p0, $x_p1, $x_p2, $x_p3, $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x02) {
-			printf $fh_asm "\t\tMX_ARP_RESTART\n";
+			printf $fh_asm "\t\tMX_ARP_RESTART\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x03) {
-			printf $fh_asm "\t\tMX_ARP_OFF\n";
+			printf $fh_asm "\t\tMX_ARP_OFF\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x04) {
-			printf $fh_asm "\t\tMX_ARP_ON_1\n";
+			printf $fh_asm "\t\tMX_ARP_ON_1\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x05) {
-			printf $fh_asm "\t\tMX_ARP_ON_2\n";
+			printf $fh_asm "\t\tMX_ARP_ON_2\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x08) {
 			my $ay_m = @bin[$offs++];
-			printf $fh_asm "\t\tMX_AY_MUL %d\n", $ay_m;
+			printf $fh_asm "\t\tMX_AY_MUL %d\t\t\t; \$%04X [\$%04X]\n", $ay_m, $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x09) {
 			$echo = 1;
-			print $fh_asm "\t\tMX_ECHO_ON\n";
+			printf $fh_asm "\t\tMX_ECHO_ON\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x0A) {
 			$echo = 0;
-			print $fh_asm "\t\tMX_ECHO_OFF\n";
-		} 
+			printf $fh_asm "\t\tMX_ECHO_OFF\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+		} else {
+			printf $fh_asm "\t\t; Uknown FF %02X\t\t\t; \$%04X [\$%04X]\n", $x_c, $s_offs, $sh_offs;
+		}
 	} elsif ($echo) {
 		my ($e_p, $h_p, $dur) = ($x_c, @bin[$offs++], @bin[$offs++]);
-		printf $fh_asm "\t\tMX_NOTE_ECHO \$%02X,\$%02X,\$%02X\n", $e_p, $h_p, $dur;
+		printf $fh_asm "\t\tMX_NOTE_ECHO \$%02X,\$%02X,\$%02X\t; \$%04X [\$%04X]\n", $e_p, $h_p, $dur, $s_offs, $sh_offs;
 	} else {
 		my ($e_p, $h_p, $d_p, $dur) = ($x_c, @bin[$offs++], @bin[$offs++], @bin[$offs++]);
-		printf $fh_asm "\t\tMX_NOTE_NECHO \$%02X,\$%02X,\$%02X,\$%02X\n", $e_p, $h_p, $d_p, $dur;		
+		printf $fh_asm "\t\tMX_NOTE_NECHO \$%02X,\$%02X,\$%02X,\$%02X\t; \$%04X [\$%04X]\n", $e_p, $h_p, $d_p, $dur, $s_offs, $sh_offs;		
 	}
 
 }
