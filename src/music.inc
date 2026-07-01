@@ -11,7 +11,8 @@
 		.byte	0,0,0,0,0,0
 	.endmacro
 
-	.macro MX_CMD_PORTA p0, p1, p2, p3
+	.macro MX_CMD_ENVELOPE act, p1, p2, p3
+		.byte	$FF, 1, act, p1, p2, p3
 	.endmacro
 
 	.macro MX_ARP_RESTART
@@ -30,15 +31,17 @@
 	.endmacro
 
 	.macro MX_ECHO_ON
+		.byte	$FF, $09
 	.endmacro
 
 	.macro MX_ECHO_OFF
+		.byte	$FF, $0A
 	.endmacro
 
-
+;;;;;;;;;;;;;;; !!!!!!!!!!!!!!!!!!!!!!!!! THIS IS A FRIG should be 2 notes and 1 dur, implement echo
 	.macro MX_NOTE_ECHO p_e, p_h, dur
-		;;;;;;;;;;;;;;; !!!!!!!!!!!!!!!!!!!!!!!!! THIS IS A FRIG should be 2 notes and 1 dur, implement echo
-		.byte	p_e, p_h, p_h, dur
+		
+		.byte	p_e, p_h, dur
 	.endmacro
 
 	.macro MX_NOTE_NECHO p_e, p_h, p_d, dur

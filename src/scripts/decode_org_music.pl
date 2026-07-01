@@ -57,7 +57,7 @@ while ($offs < 0x10000) {
 			my $x_p2 = @bin[$offs++];
 			my $x_p3 = @bin[$offs++];
 
-			printf $fh_asm "\t\tMX_CMD_PORTA\t%d, %d, %d, %d\n", $x_p0, $x_p1, $x_p2, $x_p3;
+			printf $fh_asm "\t\tMX_CMD_ENVELOPE\t%d, %d, %d, %d\n", $x_p0, $x_p1, $x_p2, $x_p3;
 		} elsif ($x_sc == 0x02) {
 			printf $fh_asm "\t\tMX_ARP_RESTART\n";
 		} elsif ($x_sc == 0x03) {

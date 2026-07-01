@@ -2,12 +2,12 @@
 
 		.include "music.inc"
 		.export music_x_stream
-music_x_stream:	; X stream starts at $EBE4
+music_x_stream:	; X stream starts at $70E4
 		MX_AY_MUL 1
 		MX_ARP_OFF
 		MX_ECHO_OFF
-		MX_CMD_PORTA	1, 2, 3, 1
-		MX_CMD_PORTA	0, 0, 3, 1
+		MX_CMD_ENVELOPE	1, 2, 3, 1
+		MX_CMD_ENVELOPE	0, 0, 3, 1
 		MX_ARP_ON_2
 		MX_NOTE_NECHO $71,$87,$AA,$06
 		MX_ARP_ON_2
@@ -22,37 +22,37 @@ music_x_stream:	; X stream starts at $EBE4
 		MX_ECHO_ON
 
 		MX_LOOP_START	2
-		MX_CMD_PORTA	0, 0, 2, 1
+		MX_CMD_ENVELOPE	0, 0, 2, 1
 		MX_NOTE_ECHO $65,$AA,$20
-		;MX_NOTE_ECHO $65,$AA,$12
-		MX_CMD_PORTA	1, 1, 0, 1
+		MX_NOTE_ECHO $65,$AA,$12
+		MX_CMD_ENVELOPE	1, 1, 0, 1
 		MX_NOTE_ECHO $97,$B4,$0E
 		MX_LOOP_END
 
 		MX_AY_MUL 2
 		MX_ARP_ON_2
 
-		MX_LOOP_START	2
-		MX_CMD_PORTA	0, 0, 2, 1
+		MX_LOOP_START	16
+		MX_CMD_ENVELOPE	0, 0, 2, 1
 		MX_NOTE_ECHO $8F,$6B,$20
-		;MX_NOTE_ECHO $8F,$6B,$12
-		MX_CMD_PORTA	1, 1, 0, 1
+		MX_NOTE_ECHO $8F,$6B,$12
+		MX_CMD_ENVELOPE	1, 1, 0, 1
 		MX_NOTE_ECHO $97,$5F,$0E
 		MX_LOOP_END
 
 
-		MX_LOOP_START	2
-		MX_CMD_PORTA	0, 0, 2, 1
+		MX_LOOP_START	8
+		MX_CMD_ENVELOPE	0, 0, 2, 1
 		MX_NOTE_ECHO $65,$AA,$20
-		;MX_NOTE_ECHO $8F,$6B,$12
-		MX_CMD_PORTA	1, 1, 0, 1
+		MX_NOTE_ECHO $8F,$6B,$12
+		MX_CMD_ENVELOPE	1, 1, 0, 1
 		MX_NOTE_ECHO $97,$5F,$0E
 		MX_LOOP_END
 
 		MX_AY_MUL 2
 		MX_ARP_ON_1
 		MX_ECHO_OFF
-		MX_CMD_PORTA	0, 0, 1, 1
+		MX_CMD_ENVELOPE	0, 0, 1, 1
 
 		MX_LOOP_START	24
 		MX_NOTE_NECHO $65,$7F,$AA,$08
@@ -62,7 +62,7 @@ music_x_stream:	; X stream starts at $EBE4
 		MX_NOTE_NECHO $71,$8F,$BE,$04
 		MX_LOOP_END
 
-		MX_CMD_PORTA	0, 0, 0, 1
+		MX_CMD_ENVELOPE	0, 0, 0, 1
 		MX_AY_MUL 64
 		MX_ARP_ON_2
 		MX_NOTE_NECHO $65,$7F,$AA,$0C
@@ -77,5 +77,5 @@ music_x_stream:	; X stream starts at $EBE4
 		MX_NOTE_NECHO $65,$7F,$AA,$20
 		MX_NOTE_NECHO $3F,$7F,$FE,$04
 		MX_END
-		; End of X stream found at $0xECBA
+		; End of X stream found at $0x71BA
 
