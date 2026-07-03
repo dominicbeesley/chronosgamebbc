@@ -59,7 +59,14 @@ zp_song_x_dur:		.res	1
 zp_song_x_loop_ptr:	.res	2
 zp_song_x_loop_ctr:	.res	1
 
-zp_envelope_act:		.res	1
+zp_envelope_phase_def:	.res	1
+zp_envelope_attack_speed:	.res	1
+zp_envelope_decay_speed:	.res	1
+zp_envelope_decay_target:	.res	1
+
+zp_envelope_phase_act:	.res	1
+zp_envelope_attack_ctdn:	.res	1
+zp_envelope_decay_ctdn:	.res	1
 
 zp_echo:			.res	1
 
@@ -110,7 +117,7 @@ zp_echo:			.res	1
 song_init:
 		ldx	#0
 		stx	zp_beeb256
-		stx	zp_envelope_act
+		stx	zp_envelope_phase_def		
 		stx	zp_echo
 		;;stx	_oper_echo_handler+1
 		inx
@@ -188,49 +195,183 @@ song_x_parse_again:
 		bne	@not_echo_off
 @not_echo_off:	cmp	#1
 		bne	@not_env
+
+		; ENVELOPE command
 		lda	(zp_song_x_ptr),Y
 		iny
+		sta	zp_envelope_phase_def		
+
+		lda	(zp_song_x_ptr),Y
 		iny
+		sta	zp_envelope_attack_speed
+
+		lda	(zp_song_x_ptr),Y
 		iny
+		sta	zp_envelope_decay_speed
+
+		lda	(zp_song_x_ptr),Y
 		iny
-		sta	zp_envelope_act
+		sta	zp_envelope_decay_target
+
 		jmp	song_x_parse_again
 
 
 @not_env:	jmp	song_x_parse_again	; TODO-shorten?
 
 @sk_not_ff_cmd:
+		;load note value
+		ldx	zp_envelope_phase_def
+		stx	zp_envelope_phase_act
+		beq	@load_note_decay_first
+		; load a note with attack, start at 0 and work up
+
+		;TODO: I think all these targets can be ignored, just test if off value is <=1
+
 		sta	oper_coarseE
 		jsr	calcon
-		sta	oper_onE
-		stx	oper_offE
-		
+		sta	oper_offE
+		sta	oper_attackE_target
+
 		lda	(zp_song_x_ptr),Y
 		iny
 		sta	oper_coarseH
 		jsr	calcon
-		sta	oper_onH
-		stx	oper_offH
+		sta	oper_offH
+		sta	oper_attackH_target
 
-		lda	zp_echo
+		lda	zp_echo			; if echo is active - don't load D
 		bne	@skip_x_d
 		lda	(zp_song_x_ptr),Y
 		iny
 		sta	oper_coarseD
 		jsr	calcon
-		sta	oper_onD
-		stx	oper_offD
+		sta	oper_offD
+		sta	oper_attackD_target		
 @skip_x_d:
+		lda	#1
+		sta	oper_onE
+		sta	oper_onH
+		sta	oper_onD
+		bne	@note_load_dur
+@load_note_decay_first:
+		sta	oper_coarseE
+		jsr	calcon
+		sta	oper_onE
 
 		lda	(zp_song_x_ptr),Y
 		iny
+		sta	oper_coarseH
+		jsr	calcon
+		sta	oper_onH
+
+		lda	zp_echo			; if echo is active - don't load D
+		bne	@skip_x_d2
+		lda	(zp_song_x_ptr),Y
+		iny
+		sta	oper_coarseD
+		jsr	calcon
+		sta	oper_onD
+@skip_x_d2:
+		lda	#1
+		sta	oper_offE
+		sta	oper_offH
+		sta	oper_offD
+
+
+@note_load_dur:	lda	(zp_song_x_ptr),Y
+		iny
 		sta	zp_song_x_dur
+
+		lda	zp_envelope_phase_def	; reset envelope phase
+		sta	zp_envelope_phase_act
+		lda	zp_envelope_attack_speed
+		sta	zp_envelope_attack_ctdn
+		lda	zp_envelope_decay_speed
+		sta	zp_envelope_decay_ctdn
 
 		jsr	update_x_ptr
 
 song_x_parse_skip:
+		jsr	song_x_envelope		; TODO: move inline
+
 		jsr	song_beep
 		jmp	song_x_parse
+
+
+song_x_envelope:	lda	zp_envelope_phase_act
+		bne	song_x_envelope_attack
+		
+		; decay
+		dec	zp_envelope_decay_ctdn		
+		beq	song_x_envelope_exit
+		ldx	zp_envelope_decay_speed
+		stx	zp_envelope_decay_ctdn
+
+		ldx	oper_onD
+		dex
+		beq	@skip_D
+		stx	oper_onD
+		inc	oper_offD		
+@skip_D:		ldx	oper_onE
+		dex
+		beq	@skip_E
+		stx	oper_onE
+		inc	oper_offE
+@skip_E:		ldx	oper_onH
+		dex
+		beq	@skip_endphase
+		cpx	zp_envelope_decay_target
+		beq	@skip_endphase
+		stx	oper_onH			; TODO: rearrgange for speed?
+		inc	oper_offH
+		bne	song_x_envelope_exit	; always
+@skip_endphase:	inc	zp_envelope_phase_act
+		bne	song_x_envelope_exit	; always
+
+song_x_envelope_attack:
+		cmp	#2
+		beq	song_x_envelope_exit
+
+		dec	zp_envelope_attack_ctdn
+		bne	song_x_envelope_exit
+		lda	zp_envelope_attack_speed
+		sta	zp_envelope_attack_ctdn
+
+		; TODO: this compares to targets but we could just as well count down to off=1
+
+		ldx	oper_onD
+		inx
+		cpx	#1
+oper_attackD_target = *-1
+		bcc	@skip_D1
+		bne	@skip_D
+@skip_D1:	stx	oper_onD
+		dec	oper_offD
+@skip_D:		ldx	oper_onE
+		inx
+		cpx	#1
+oper_attackE_target = *-1
+		bcc	@skip_E1
+		bne	@skip_E
+@skip_E1:	stx	oper_onE
+		dec	oper_offE
+@skip_E:		ldx	oper_onH
+		inx
+		cpx	#1
+oper_attackH_target = *-1
+		bcc	@skip_H1
+		bne	@skip_endphase
+@skip_H1:	stx	oper_onH
+		dec	oper_offH
+		rts
+@skip_endphase:	dec	zp_envelope_phase_act
+song_x_envelope_exit:
+		rts
+
+
+
+
+
 
 
 song_beep:
@@ -328,8 +469,7 @@ update_x_ptr:
 		rts
 
 calcon:		; on entry A is osc period
-		; on exit A is on period, X is off period
-		; if zp_envelope_act is non-0 then A and X are swapped
+		; on exit A is on/off period value 3/16 of osc period
 		lsr	A
 		lsr	A
 		lsr	A
@@ -337,12 +477,6 @@ calcon:		; on entry A is osc period
 		lsr	A
 		clc
 		adc	zp_temp1
-		ldx	zp_envelope_act
-		beq	@ske
-		tax
-		lda	#1
-		rts
-@ske:		inx
 		rts
 
 
@@ -351,6 +485,8 @@ HERE:		jmp HERE
 
 
 anRTS:		rts
+
+
 
 		.data
 
