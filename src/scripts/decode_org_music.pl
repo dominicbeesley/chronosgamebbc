@@ -12,6 +12,9 @@ my ($fn_bin, $fn_asm) = @ARGV;
 
 my $STREAM_X_START = 0x70E4;	# IX stream start
 my $STREAM_X_START_RUN = 0xEBE4;# IX stream start when copied to RAM
+my $STREAM_Z_START = 0x7226;	# IX stream start
+my $STREAM_Z_START_RUN = 0xED26;# IX stream start when copied to RAM
+my $STREAM_Z_END = 0x74C0;	# IX stream start
 my $bin = ();
 
 open (my $fh_bin, "<", $fn_bin) or Usage("Cannot open \"$fn_bin\" for input : $!");
@@ -79,7 +82,7 @@ while ($offs < 0x10000) {
 			$echo = 0;
 			printf $fh_asm "\t\tMX_ECHO_OFF\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} else {
-			printf $fh_asm "\t\t; Uknown FF %02X\t\t\t; \$%04X [\$%04X]\n", $x_c, $s_offs, $sh_offs;
+			printf $fh_asm "\t\t; Unknown FF %02X\t\t\t; \$%04X [\$%04X]\n", $x_c, $s_offs, $sh_offs;
 		}
 	} elsif ($echo) {
 		my ($e_p, $h_p, $dur) = ($x_c, @bin[$offs++], @bin[$offs++]);
@@ -90,6 +93,47 @@ while ($offs < 0x10000) {
 	}
 
 }
+
+$offs = $STREAM_Z_START;
+print $fh_asm	"\t\t.export music_z_stream\n";
+printf $fh_asm	"music_z_stream:\t; z stream starts at \$%04X [\$%04X]\n", $STREAM_Z_START, $STREAM_Z_START_RUN;
+while ($offs < $STREAM_Z_END) {
+	
+	my $s_offs = $offs;
+	my $sh_offs = $offs - $STREAM_Z_START + $STREAM_Z_START_RUN;
+	my $x_c = @bin[$offs++];
+
+	if ($x_c == 0x01) {
+		printf $fh_asm "\t\tMZ_LOOP_END\t\t\t; \$%04X [\$%04X]\n\n", $s_offs, $sh_offs;
+	} elsif ($x_c == 0x02) {
+		my $x_r = @bin[$offs++];
+		printf $fh_asm "\n\t\tMZ_LOOP_START\t%d;\t\t; \$%04X [\$%04X]\n", $x_r + 1, $s_offs, $sh_offs;
+	} elsif ($x_c == 0x03) {
+		my $x_sc = @bin[$offs++];
+		if ($x_sc == 0x01) {
+			printf $fh_asm "\t\tMZ_GLIDE_ON\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+		} elsif ($x_sc == 0x02) {
+			printf $fh_asm "\t\tMZ_GLIDE_OFF\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+		} elsif ($x_sc == 0x03) {
+			printf $fh_asm "\t\tMZ_GLIDE_SPEED\t%d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], $s_offs, $sh_offs;
+		} elsif ($x_sc == 0x04) {
+			printf $fh_asm "\t\tMZ_VIBRATO\t%d, %d, %d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], @bin[$offs++], @bin[$offs++], $s_offs, $sh_offs;
+		} elsif ($x_sc == 0x05) {
+			printf $fh_asm "\t\tMZ_ECHO_VOLUME\t%d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], $s_offs, $sh_offs;
+		} elsif ($x_sc == 0x06) {
+			printf $fh_asm "\t\tMZ_ECHO_ON\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+		} elsif ($x_sc == 0x07) {
+			printf $fh_asm "\t\tMZ_ECHO_OFF\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+		} else {
+			printf $fh_asm "\t\t; Z: Unknown F03 %02X\t\t\t; \$%04X [\$%04X]\n", $x_sc, $s_offs, $sh_offs;
+		}
+	} else {
+		my ($c_p, $dur) = ($x_c, @bin[$offs++]);
+		printf $fh_asm "\t\tMZ_NOTE \$%02X,\$%02X\t\t\t; \$%04X [\$%04X]\n", $c_p, $dur, $s_offs, $sh_offs;		
+	}
+
+}
+
 
 
 close $fh_asm;

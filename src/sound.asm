@@ -47,17 +47,23 @@
 
 zp_temp1:		.res	1
 
-zp_osc_coarseE:		.res	1
-zp_osc_coarseH:		.res	1
-zp_osc_coarseD:		.res	1
+zp_osc_coarseC_ctdn:	.res	1
+zp_osc_coarseE_ctdn:	.res	1
+zp_osc_coarseH_ctdn:	.res	1
+zp_osc_coarseD_ctdn:	.res	1
 
 zp_beeb256:		.res	1
+
 zp_song_x_ptr:		.res	2
-
-zp_song_x_dur:		.res	1
-
+zp_song_x_dur_ctdn:	.res	1
 zp_song_x_loop_ptr:	.res	2
 zp_song_x_loop_ctr:	.res	1
+
+zp_song_z_ptr:		.res	2
+zp_song_z_dur_ctdn:	.res	1
+zp_song_z_loop_ptr:	.res	2
+zp_song_z_loop_ctr:	.res	1
+
 
 zp_envelope_phase_def:	.res	1
 zp_envelope_attack_speed:	.res	1
@@ -69,6 +75,8 @@ zp_envelope_attack_ctdn:	.res	1
 zp_envelope_decay_ctdn:	.res	1
 
 zp_echo:			.res	1
+
+zp_flag_half_speed:	.res	1
 
 
 		.code
@@ -119,10 +127,13 @@ song_init:
 		stx	zp_beeb256
 		stx	zp_envelope_phase_def		
 		stx	zp_echo
+		stx	zp_flag_half_speed
 		;;stx	_oper_echo_handler+1
 		inx
 		stx	zp_song_x_loop_ctr
-		stx	zp_song_x_dur
+		stx	zp_song_x_dur_ctdn
+		stx	zp_song_z_loop_ctr
+		stx	zp_song_z_dur_ctdn
 
 		lda	#<music_x_stream
 		sta	zp_song_x_ptr
@@ -131,10 +142,17 @@ song_init:
 		sta	zp_song_x_ptr+1
 		sta	zp_song_x_loop_ptr+1
 
+		lda	#<music_z_stream
+		sta	zp_song_z_ptr
+		sta	zp_song_z_loop_ptr
+		lda	#>music_z_stream
+		sta	zp_song_z_ptr+1
+		sta	zp_song_z_loop_ptr+1
 
 
 
-song_x_parse:	dec	zp_song_x_dur
+song_x_note_ctdnlp:
+		dec	zp_song_x_dur_ctdn
 		beq	song_x_parse_againy0
 		jmp	song_x_parse_skip
 
@@ -280,7 +298,7 @@ song_x_parse_again:
 
 @note_load_dur:	lda	(zp_song_x_ptr),Y
 		iny
-		sta	zp_song_x_dur
+		sta	zp_song_x_dur_ctdn
 
 		lda	zp_envelope_phase_def	; reset envelope phase
 		sta	zp_envelope_phase_act
@@ -292,11 +310,91 @@ song_x_parse_again:
 		jsr	update_x_ptr
 
 song_x_parse_skip:
+
+
+
+; #####          ###   #####  ####   #####    #    #   #         ####     #    ####    ###   #####  ####
+;     #         #   #    #    #   #  #       # #   #   #         #   #   # #   #   #  #   #  #      #   #
+;    #          #        #    #   #  #      #   #  ## ##         #   #  #   #  #   #  #      #      #   #
+;   #            ###     #    ####   ####   #   #  # # #         ####   #   #  ####    ###   ####   ####
+;  #                #    #    # #    #      #####  #   #         #      #####  # #        #  #      # #
+; #             #   #    #    #  #   #      #   #  #   #         #      #   #  #  #   #   #  #      #  #
+; #####          ###     #    #   #  #####  #   #  #   #         #      #   #  #   #   ###   #####  #   #
+
+
+song_z_note_ctdnlp:
+		dec	zp_song_z_dur_ctdn
+		beq	song_z_parse_againy0
+		jmp	song_z_parse_skip
+
+song_z_parse_againy0:
+		ldy	#0
+		; we assume there's a note before Y runs out!
+song_z_parse_again:
+		lda	(zp_song_z_ptr),Y
+		iny
+		cmp	#1
+		bne	@sk_loop_start
+
+		; NOTE: opposite sense of cmd 1/2 cf X stream!
+		; end a loop command #1
+		dec	zp_song_z_loop_ctr
+		beq	song_z_parse_again	; exit loop, do next note
+		lda	zp_song_z_loop_ptr
+		sta	zp_song_z_ptr		
+		lda	zp_song_z_loop_ptr+1
+		sta	zp_song_z_ptr+1
+		bne	song_z_parse_againy0	; always
+
+	
+
+@sk_loop_start:	cmp	#2
+		bne	@sk_loop_end
+
+	; start a loop command #1
+		lda	(zp_song_z_ptr),Y
+		iny
+		tax
+		inx
+		stx	zp_song_z_loop_ctr
+		jsr	update_z_ptr
+		ldy	#0
+		lda	zp_song_z_ptr
+		sta	zp_song_z_loop_ptr
+		lda	zp_song_z_ptr+1
+		sta	zp_song_z_loop_ptr+1
+		bne	song_z_parse_again	; always
+
+@sk_loop_end:
+		sta	oper_coarseC
+		jsr	calcon
+		sta	oper_onC
+
+
+		lda	#1
+		sta	oper_offC
+		
+		lda	(zp_song_z_ptr),Y
+		iny
+		sta	zp_song_z_dur_ctdn
+
+		jsr	update_z_ptr
+
+
+song_z_parse_skip:
 		jsr	song_x_envelope		; TODO: move inline
 
 		jsr	song_beep
-		jmp	song_x_parse
 
+		lda	zp_flag_half_speed
+		eor	#$FF
+		sta	zp_flag_half_speed
+		bmi	song_z_note_ctdnlp
+
+
+		jmp	song_x_note_ctdnlp	; only do this every other pass
+
+	
 
 song_x_envelope:	lda	zp_envelope_phase_act
 		bne	song_x_envelope_attack
@@ -368,25 +466,43 @@ oper_attackH_target = *-1
 song_x_envelope_exit:
 		rts
 
-
-
-
-
-
-
 song_beep:
-		jsr	beep_256
-		jsr	beep_256
+;;;;		jsr	beep_256
+;;;;		jsr	beep_256
 		jsr	beep_256
 beep_256:
 ; Play a tone using variable width pulses with modulation
-beep256_lp:	dec	zp_osc_coarseE
+beep256_lp:	
+
+		dec	zp_osc_coarseC_ctdn
+		bne	skip_osc_E
+
+		; osc C
+		lda	#$90
+oper_coarseC = *-1
+		sta	zp_osc_coarseC_ctdn
+		lda	#$90
+		POKEA
+		ldx	#10
+oper_onC = *-1
+@onclp:		dex
+		bne	@onclp
+		lda	#$9F
+		POKEA
+		ldx	#1
+oper_offC = *-1
+@offclp:		dex
+		bne	@offclp
+
+skip_osc_E:
+
+		dec	zp_osc_coarseE_ctdn
 		bne	skip_osc_H
 
 		; osc E
 		lda	#$90
 oper_coarseE = *-1
-		sta	zp_osc_coarseE
+		sta	zp_osc_coarseE_ctdn
 		lda	#$90
 		POKEA
 		ldx	#10
@@ -402,13 +518,13 @@ oper_offE = *-1
 
 skip_osc_H:
 
-		dec	zp_osc_coarseH
+		dec	zp_osc_coarseH_ctdn
 		bne	skip_osc_D
 
 		; osc H
 		lda	#$20
 oper_coarseH := *-1
-		sta	zp_osc_coarseH
+		sta	zp_osc_coarseH_ctdn
 		lda	#$90
 		POKEA
 		ldx	#1
@@ -424,13 +540,13 @@ oper_offH = *-1
 
 skip_osc_D:
 
-		dec	zp_osc_coarseD
+		dec	zp_osc_coarseD_ctdn
 		bne	skip_osc_done
 
 		; osc D
 		lda	#$16
 oper_coarseD := *-1
-		sta	zp_osc_coarseD
+		sta	zp_osc_coarseD_ctdn
 		lda	zp_echo			;; TODO: remove this and pick up from echo buffer
 		bne	@skddd
 		lda	#$90
@@ -466,6 +582,16 @@ update_x_ptr:
 		lda	zp_song_x_ptr+1
 		adc	#0
 		sta	zp_song_x_ptr+1
+		rts
+
+update_z_ptr:
+		tya
+		clc
+		adc	zp_song_z_ptr
+		sta	zp_song_z_ptr
+		lda	zp_song_z_ptr+1
+		adc	#0
+		sta	zp_song_z_ptr+1
 		rts
 
 calcon:		; on entry A is osc period

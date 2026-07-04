@@ -1,4 +1,9 @@
 
+ENV_PHASE_ATTACK = 1
+ENV_PHASE_DECAY = 0
+ENV_PHASE_SUSTAIN = 2
+
+
 	.macro MX_LOOP_END
 		.byte	2
 	.endmacro
@@ -47,3 +52,39 @@
 	.macro MX_NOTE_NECHO p_e, p_h, p_d, dur
 		.byte	p_e, p_h, p_d, dur
 	.endmacro
+
+
+
+	.macro MZ_LOOP_END
+		.byte	$01
+	.endmacro
+
+	.macro MZ_LOOP_START n
+		.byte	$02, (n - 1) & $FF
+	.endmacro
+
+	.macro MZ_GLIDE_ON
+	.endmacro
+
+	.macro MZ_GLIDE_OFF
+	.endmacro
+
+	.macro MZ_GLIDE_SPEED n
+	.endmacro
+
+	.macro MZ_VIBRATO p1, p2, p3
+	.endmacro
+
+	.macro MZ_ECHO_VOLUME n
+	.endmacro
+
+	.macro MZ_ECHO_ON
+	.endmacro
+
+	.macro MZ_ECHO_OFF
+	.endmacro
+
+	.macro MZ_NOTE p, dur
+		.byte p, dur
+	.endmacro
+
