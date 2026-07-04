@@ -117,7 +117,7 @@ while ($offs < $STREAM_Z_END) {
 		} elsif ($x_sc == 0x03) {
 			printf $fh_asm "\t\tMZ_GLIDE_SPEED\t%d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x04) {
-			printf $fh_asm "\t\tMZ_VIBRATO\t%d, %d, %d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], @bin[$offs++], @bin[$offs++], $s_offs, $sh_offs;
+			printf $fh_asm "\t\tMZ_ENVELOPE\t%d, %d, %d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], @bin[$offs++], @bin[$offs++], $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x05) {
 			printf $fh_asm "\t\tMZ_ECHO_VOLUME\t%d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x06) {

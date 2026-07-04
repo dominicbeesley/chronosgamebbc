@@ -16,8 +16,8 @@ ENV_PHASE_SUSTAIN = 2
 		.byte	0,0,0,0,0,0
 	.endmacro
 
-	.macro MX_CMD_ENVELOPE act, p1, p2, p3
-		.byte	$FF, 1, act, p1, p2, p3
+	.macro MX_CMD_ENVELOPE phase, attack_speed, decay_speed, decay_target
+		.byte	$FF, 1, phase, attack_speed, decay_speed, decay_target
 	.endmacro
 
 	.macro MX_ARP_RESTART
@@ -72,7 +72,8 @@ ENV_PHASE_SUSTAIN = 2
 	.macro MZ_GLIDE_SPEED n
 	.endmacro
 
-	.macro MZ_VIBRATO p1, p2, p3
+	.macro MZ_ENVELOPE phase, attack_speed, decay_speed
+		.byte 3, 4, phase, attack_speed, decay_speed
 	.endmacro
 
 	.macro MZ_ECHO_VOLUME n

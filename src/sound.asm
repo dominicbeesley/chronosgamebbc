@@ -65,14 +65,23 @@ zp_song_z_loop_ptr:	.res	2
 zp_song_z_loop_ctr:	.res	1
 
 
-zp_envelope_phase_def:	.res	1
-zp_envelope_attack_speed:	.res	1
-zp_envelope_decay_speed:	.res	1
-zp_envelope_decay_target:	.res	1
+zp_x_env_phase_def:	.res	1
+zp_x_env_attack_speed:	.res	1
+zp_x_env_decay_speed:	.res	1
+zp_x_env_decay_target:	.res	1
 
-zp_envelope_phase_act:	.res	1
-zp_envelope_attack_ctdn:	.res	1
-zp_envelope_decay_ctdn:	.res	1
+zp_x_env_phase_act:	.res	1
+zp_x_env_attack_ctdn:	.res	1
+zp_x_env_decay_ctdn:	.res	1
+
+zp_z_env_phase_def:	.res	1
+zp_z_env_attack_speed:	.res	1
+zp_z_env_decay_speed:	.res	1
+
+zp_z_env_phase_act:	.res	1
+zp_z_env_attack_ctdn:	.res	1
+zp_z_env_decay_ctdn:	.res	1
+
 
 zp_echo:			.res	1
 
@@ -125,7 +134,8 @@ zp_flag_half_speed:	.res	1
 song_init:
 		ldx	#0
 		stx	zp_beeb256
-		stx	zp_envelope_phase_def		
+		stx	zp_x_env_phase_def		
+		stx	zp_z_env_phase_def		
 		stx	zp_echo
 		stx	zp_flag_half_speed
 		;;stx	_oper_echo_handler+1
@@ -134,6 +144,9 @@ song_init:
 		stx	zp_song_x_dur_ctdn
 		stx	zp_song_z_loop_ctr
 		stx	zp_song_z_dur_ctdn
+		inx
+		stx	zp_x_env_phase_act
+		stx	zp_z_env_phase_act
 
 		lda	#<music_x_stream
 		sta	zp_song_x_ptr
@@ -217,19 +230,19 @@ song_x_parse_again:
 		; ENVELOPE command
 		lda	(zp_song_x_ptr),Y
 		iny
-		sta	zp_envelope_phase_def		
+		sta	zp_x_env_phase_def		
 
 		lda	(zp_song_x_ptr),Y
 		iny
-		sta	zp_envelope_attack_speed
+		sta	zp_x_env_attack_speed
 
 		lda	(zp_song_x_ptr),Y
 		iny
-		sta	zp_envelope_decay_speed
+		sta	zp_x_env_decay_speed
 
 		lda	(zp_song_x_ptr),Y
 		iny
-		sta	zp_envelope_decay_target
+		sta	zp_x_env_decay_target
 
 		jmp	song_x_parse_again
 
@@ -238,8 +251,8 @@ song_x_parse_again:
 
 @sk_not_ff_cmd:
 		;load note value
-		ldx	zp_envelope_phase_def
-		stx	zp_envelope_phase_act
+		ldx	zp_x_env_phase_def
+		stx	zp_x_env_phase_act
 		beq	@load_note_decay_first
 		; load a note with attack, start at 0 and work up
 
@@ -300,12 +313,10 @@ song_x_parse_again:
 		iny
 		sta	zp_song_x_dur_ctdn
 
-		lda	zp_envelope_phase_def	; reset envelope phase
-		sta	zp_envelope_phase_act
-		lda	zp_envelope_attack_speed
-		sta	zp_envelope_attack_ctdn
-		lda	zp_envelope_decay_speed
-		sta	zp_envelope_decay_ctdn
+		lda	zp_x_env_attack_speed
+		sta	zp_x_env_attack_ctdn
+		lda	zp_x_env_decay_speed
+		sta	zp_x_env_decay_ctdn
 
 		jsr	update_x_ptr
 
@@ -365,45 +376,119 @@ song_z_parse_again:
 		sta	zp_song_z_loop_ptr+1
 		bne	song_z_parse_again	; always
 
-@sk_loop_end:
+@sk_loop_end:	cmp	#3
+		bne	@sk_sub_commands
+
+		lda	(zp_song_z_ptr),Y
+		iny
+
+		cmp	#4
+		bne	@sk_envelope
+
+		; ENVELOPE command
+		lda	(zp_song_z_ptr),Y
+		iny
+		sta	zp_z_env_phase_def		
+
+		lda	(zp_song_z_ptr),Y
+		iny
+		sta	zp_z_env_attack_speed
+
+		lda	(zp_song_z_ptr),Y
+		iny
+		sta	zp_z_env_decay_speed
+
+		jmp	song_z_parse_again
+
+@sk_envelope:	jmp	song_z_parse_again
+
+
+@sk_sub_commands:
+
+		;load note value
+		ldx	zp_z_env_phase_def
+		stx	zp_z_env_phase_act
+		beq	@load_note_decay_first
+		; load a note with attack, start at 0 and work up
+
+		sta	oper_coarseC
+		jsr	calcon
+		sta	oper_offC
+		sta	oper_attackC_target		
+
+		lda	#1
+		sta	oper_onC
+		bne	@note_load_dur
+@load_note_decay_first:
 		sta	oper_coarseC
 		jsr	calcon
 		sta	oper_onC
-
+		sta	oper_attackC_target		
 
 		lda	#1
 		sta	oper_offC
-		
+
+@note_load_dur:
 		lda	(zp_song_z_ptr),Y
 		iny
 		sta	zp_song_z_dur_ctdn
+
+		lda	zp_z_env_attack_speed
+		sta	zp_z_env_attack_ctdn
+		lda	zp_z_env_decay_speed
+		sta	zp_z_env_decay_ctdn
+
 
 		jsr	update_z_ptr
 
 
 song_z_parse_skip:
 		jsr	song_x_envelope		; TODO: move inline
-
+		jsr	song_z_envelope		; TODO: move inline
 		jsr	song_beep
+
+		clc	
+		lda	zp_z_env_phase_def
+		adc	#'0'
+		sta	$7C00
+		lda	zp_z_env_phase_act
+		adc	#'0'
+		sta	$7C01
+		lda	oper_onC
+		adc	#'0'
+		sta	$7C02
+
 
 		lda	zp_flag_half_speed
 		eor	#$FF
 		sta	zp_flag_half_speed
-		bmi	song_z_note_ctdnlp
-
+		bpl	@skzonly
+		jmp	song_z_note_ctdnlp	; this skips to do X as well as Z!
+@skzonly:
 
 		jmp	song_x_note_ctdnlp	; only do this every other pass
 
+;
+; #   #          ###   #####  ####   #####    #    #   #         #####  #   #  #   #  #####  #       ###   ####   #####
+; #   #         #   #    #    #   #  #       # #   #   #         #      #   #  #   #  #      #      #   #  #   #  #
+;  # #          #        #    #   #  #      #   #  ## ##         #      ##  #  #   #  #      #      #   #  #   #  #
+;   #    #####   ###     #    ####   ####   #   #  # # #         ####   # # #   # #   ####   #      #   #  ####   ####
+;  # #              #    #    # #    #      #####  #   #         #      #  ##   # #   #      #      #   #  #      #
+; #   #         #   #    #    #  #   #      #   #  #   #         #      #   #   # #   #      #      #   #  #      #
+; #   #          ###     #    #   #  #####  #   #  #   #         #####  #   #    #    #####  #####   ###   #      #####
+;
+
 	
 
-song_x_envelope:	lda	zp_envelope_phase_act
+song_x_envelope:	lda	zp_x_env_phase_act
 		bne	song_x_envelope_attack
 		
 		; decay
-		dec	zp_envelope_decay_ctdn		
-		beq	song_x_envelope_exit
-		ldx	zp_envelope_decay_speed
-		stx	zp_envelope_decay_ctdn
+		dec	zp_x_env_decay_ctdn	; speed gate	
+		bne	song_x_envelope_exit
+
+		ldx	zp_x_env_decay_speed	; reload
+		stx	zp_x_env_decay_ctdn
 
 		ldx	oper_onD
 		dex
@@ -418,22 +503,22 @@ song_x_envelope:	lda	zp_envelope_phase_act
 @skip_E:		ldx	oper_onH
 		dex
 		beq	@skip_endphase
-		cpx	zp_envelope_decay_target
+		cpx	zp_x_env_decay_target
 		beq	@skip_endphase
 		stx	oper_onH			; TODO: rearrgange for speed?
 		inc	oper_offH
-		bne	song_x_envelope_exit	; always
-@skip_endphase:	inc	zp_envelope_phase_act
-		bne	song_x_envelope_exit	; always
+		rts
+@skip_endphase:	inc	zp_x_env_phase_act
+		rts
 
 song_x_envelope_attack:
 		cmp	#2
 		beq	song_x_envelope_exit
 
-		dec	zp_envelope_attack_ctdn
+		dec	zp_x_env_attack_ctdn	; speed gate
 		bne	song_x_envelope_exit
-		lda	zp_envelope_attack_speed
-		sta	zp_envelope_attack_ctdn
+		lda	zp_x_env_attack_speed	; reload gate
+		sta	zp_x_env_attack_ctdn
 
 		; TODO: this compares to targets but we could just as well count down to off=1
 
@@ -462,9 +547,65 @@ oper_attackH_target = *-1
 @skip_H1:	stx	oper_onH
 		dec	oper_offH
 		rts
-@skip_endphase:	dec	zp_envelope_phase_act
+@skip_endphase:	dec	zp_x_env_phase_act
 song_x_envelope_exit:
 		rts
+
+
+; #####          ###   #####  ####   #####    #    #   #         #####  #   #  #   #  #####  #       ###   ####   #####
+;     #         #   #    #    #   #  #       # #   #   #         #      #   #  #   #  #      #      #   #  #   #  #
+;    #          #        #    #   #  #      #   #  ## ##         #      ##  #  #   #  #      #      #   #  #   #  #
+;   #    #####   ###     #    ####   ####   #   #  # # #         ####   # # #   # #   ####   #      #   #  ####   ####
+;  #                #    #    # #    #      #####  #   #         #      #  ##   # #   #      #      #   #  #      #
+; #             #   #    #    #  #   #      #   #  #   #         #      #   #   # #   #      #      #   #  #      #
+; #####          ###     #    #   #  #####  #   #  #   #         #####  #   #    #    #####  #####   ###   #      #####
+
+
+
+song_z_envelope:	lda	zp_z_env_phase_act
+		bne	song_z_envelope_attack
+		
+		; decay
+		dec	zp_z_env_decay_ctdn		
+		bne	song_z_envelope_exit	; speed gate
+		ldx	zp_z_env_decay_speed
+		stx	zp_z_env_decay_ctdn	; reload
+
+		ldx	oper_onC
+		dex
+		beq	@skip_endphase
+		stx	oper_onC
+		inc	oper_offC		
+		rts
+@skip_endphase:	inc	zp_z_env_phase_act
+		inc	zp_z_env_phase_act
+		rts
+
+song_z_envelope_attack:
+		cmp	#2
+		beq	song_z_envelope_exit
+
+		dec	zp_z_env_attack_ctdn
+		bne	song_z_envelope_exit	; speed gate
+		lda	zp_z_env_attack_speed
+		sta	zp_z_env_attack_ctdn	; reload
+
+		; TODO: this compares to targets but we could just as well count down to off=1
+
+		ldx	oper_onC
+		inx
+		cpx	#1
+oper_attackC_target = *-1
+		bcc	@skip_C1
+		bne	@skip_endphase
+@skip_C1:	stx	oper_onC
+		dec	oper_offC
+		rts
+@skip_endphase:	dec	zp_z_env_phase_act
+song_z_envelope_exit:
+		rts
+
+
 
 song_beep:
 ;;;;		jsr	beep_256
