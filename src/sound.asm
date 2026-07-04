@@ -608,8 +608,8 @@ song_z_envelope_exit:
 
 
 song_beep:
-;;;;		jsr	beep_256
-;;;;		jsr	beep_256
+		jsr	beep_256
+		jsr	beep_256
 		jsr	beep_256
 beep_256:
 ; Play a tone using variable width pulses with modulation
@@ -705,7 +705,7 @@ oper_offD = *-1
 
 skip_osc_done:
 
-		ldx	#5
+		ldx	#1
 @dlp:		jsr	wait
 		dex
 		bne	@dlp
