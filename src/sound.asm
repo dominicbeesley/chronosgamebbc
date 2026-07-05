@@ -82,6 +82,11 @@ zp_z_env_phase_act:	.res	1
 zp_z_env_attack_ctdn:	.res	1
 zp_z_env_decay_ctdn:	.res	1
 
+zp_z_glide_flag:		.res	1
+zp_z_glide_speed:		.res	1
+zp_z_glide_pitch_acc:	.res	1
+zp_z_glide_pitch_target:	.res	1
+
 
 zp_echo:			.res	1
 
@@ -138,6 +143,7 @@ song_init:
 		stx	zp_z_env_phase_def		
 		stx	zp_echo
 		stx	zp_flag_half_speed
+		stx	zp_z_glide_flag
 		;;stx	_oper_echo_handler+1
 		inx
 		stx	zp_song_x_loop_ctr
@@ -382,6 +388,28 @@ song_z_parse_again:
 		lda	(zp_song_z_ptr),Y
 		iny
 
+		cmp	#1
+		bne	@sk_glide_on
+
+		ldx	#$FF
+		stx	zp_z_glide_flag
+
+@sk_glide_on:	cmp	#2
+		bne	@sk_glide_off
+
+		ldx	#$0
+		stx	zp_z_glide_flag
+
+@sk_glide_off:
+		cmp	#3
+		bne	@sk_glide_speed
+
+		lda	(zp_song_z_ptr),Y
+		iny
+		sta	zp_z_glide_speed
+
+
+@sk_glide_speed:
 		cmp	#4
 		bne	@sk_envelope
 
@@ -408,34 +436,21 @@ song_z_parse_again:
 		;load note value
 		ldx	zp_z_env_phase_def
 		stx	zp_z_env_phase_act
-		beq	@load_note_decay_first
-		; load a note with attack, start at 0 and work up
 
-		sta	oper_coarseC
-		jsr	calcon
-		sta	oper_offC
-		sta	oper_attackC_target		
+		sta 	zp_z_glide_pitch_target
+		ldx	zp_z_glide_flag
+		bne	@skip_glide_act		; if glide is active don't set the pitch here, do it in glider
+		sta	zp_z_glide_pitch_acc	; set current pitch in glider too
+		jsr	osc_c_pitch_set
 
-		lda	#1
-		sta	oper_onC
-		bne	@note_load_dur
-@load_note_decay_first:
-		sta	oper_coarseC
-		jsr	calcon
-		sta	oper_onC
-		sta	oper_attackC_target		
-
-		lda	#1
-		sta	oper_offC
-
+@skip_glide_act:
 @note_load_dur:
 		lda	(zp_song_z_ptr),Y
 		iny
 		sta	zp_song_z_dur_ctdn
 
-		lda	zp_z_env_attack_speed
+		lda	#1			; different to X-stream?
 		sta	zp_z_env_attack_ctdn
-		lda	zp_z_env_decay_speed
 		sta	zp_z_env_decay_ctdn
 
 
@@ -445,6 +460,7 @@ song_z_parse_again:
 song_z_parse_skip:
 		jsr	song_x_envelope		; TODO: move inline
 		jsr	song_z_envelope		; TODO: move inline
+		jsr	song_z_portamento		; TODO: move inline
 		jsr	song_beep
 
 		clc	
@@ -467,6 +483,31 @@ song_z_parse_skip:
 @skzonly:
 
 		jmp	song_x_note_ctdnlp	; only do this every other pass
+
+osc_c_pitch_set:
+		ldx	zp_z_env_phase_act
+		beq	@load_note_decay_first
+		; load a note with attack, start at 0 and work up
+
+		sta	oper_coarseC
+		jsr	calcon
+		sta	oper_offC
+		sta	oper_attackC_target		
+
+		lda	#1
+		sta	oper_onC
+		bne	@sk
+@load_note_decay_first:
+		sta	oper_coarseC
+		jsr	calcon
+		sta	oper_onC
+		sta	oper_attackC_target		
+
+		lda	#1
+		sta	oper_offC
+@sk:		rts
+
+
 
 ;
 ; #   #          ###   #####  ####   #####    #    #   #         #####  #   #  #   #  #####  #       ###   ####   #####
@@ -605,6 +646,32 @@ oper_attackC_target = *-1
 song_z_envelope_exit:
 		rts
 
+
+
+;  #####          ###   #####  ####   #####    #    #   #         ####    ###   ####   #####    #    #   #  #####  #   #  #####   ###
+;      #         #   #    #    #   #  #       # #   #   #         #   #  #   #  #   #    #     # #   #   #  #      #   #    #    #   #
+;     #          #        #    #   #  #      #   #  ## ##         #   #  #   #  #   #    #    #   #  ## ##  #      ##  #    #    #   #
+;    #            ###     #    ####   ####   #   #  # # #         ####   #   #  ####     #    #   #  # # #  ####   # # #    #    #   #
+;   #                #    #    # #    #      #####  #   #         #      #   #  # #      #    #####  #   #  #      #  ##    #    #   #
+;  #             #   #    #    #  #   #      #   #  #   #         #      #   #  #  #     #    #   #  #   #  #      #   #    #    #   #
+;  #####          ###     #    #   #  #####  #   #  #   #         #       ###   #   #    #    #   #  #   #  #####  #   #    #     ###
+
+
+song_z_portamento:
+		ldy	zp_z_glide_speed
+@glide_lp:	ldx	zp_z_glide_pitch_acc
+		cpx	zp_z_glide_pitch_target
+		beq	@out
+		bcs	@over
+		inx
+		inx
+@over:		dex		
+		stx	zp_z_glide_pitch_acc
+		dey
+		bne	@glide_lp
+		txa
+		jmp	osc_c_pitch_set
+@out:		rts
 
 
 song_beep:

@@ -64,12 +64,15 @@ ENV_PHASE_SUSTAIN = 2
 	.endmacro
 
 	.macro MZ_GLIDE_ON
+		.byte	3,1
 	.endmacro
 
 	.macro MZ_GLIDE_OFF
+		.byte	3,2
 	.endmacro
 
 	.macro MZ_GLIDE_SPEED n
+		.byte	3,3,n	
 	.endmacro
 
 	.macro MZ_ENVELOPE phase, attack_speed, decay_speed
