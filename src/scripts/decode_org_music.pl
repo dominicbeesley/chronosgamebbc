@@ -12,6 +12,9 @@ my ($fn_bin, $fn_asm) = @ARGV;
 
 my $STREAM_X_START = 0x70E4;	# IX stream start
 my $STREAM_X_START_RUN = 0xEBE4;# IX stream start when copied to RAM
+my $STREAM_Y_START = 0x71BA;	# IX stream start
+my $STREAM_Y_START_RUN = 0xECBA;# IX stream start when copied to RAM
+my $STREAM_Y_END = 0x7226;	# IX stream start
 my $STREAM_Z_START = 0x7226;	# IX stream start
 my $STREAM_Z_START_RUN = 0xED26;# IX stream start when copied to RAM
 my $STREAM_Z_END = 0x74C0;	# IX stream start
@@ -93,6 +96,30 @@ while ($offs < 0x10000) {
 	}
 
 }
+
+$offs = $STREAM_Y_START;
+print $fh_asm	"\t\t.export music_y_stream\n";
+printf $fh_asm	"music_y_stream:\t; y stream starts at \$%04X [\$%04X]\n", $STREAM_Y_START, $STREAM_Y_START_RUN;
+while ($offs < $STREAM_Y_END) {
+	
+	my $s_offs = $offs;
+	my $sh_offs = $offs - $STREAM_Y_START + $STREAM_Y_START_RUN;
+	my $x_c = @bin[$offs++];
+
+	if ($x_c == 0x01) {
+		printf $fh_asm "\t\tMY_LOOP_END\t\t\t; \$%04X [\$%04X]\n\n", $s_offs, $sh_offs;
+	} elsif ($x_c == 0x02) {
+		my $x_r = @bin[$offs++];
+		printf $fh_asm "\n\t\tMY_LOOP_START\t%d;\t\t; \$%04X [\$%04X]\n", $x_r + 1, $s_offs, $sh_offs;
+	} elsif ($x_c == 0x03) {
+		printf $fh_asm "\t\tMY_ENVELOPE\t%d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], $s_offs, $sh_offs;
+	} else {
+		my ($c_p, $dur) = ($x_c, @bin[$offs++]);
+		printf $fh_asm "\t\tMY_NOTE \$%02X,\$%02X\t\t\t; \$%04X [\$%04X]\n", $c_p, $dur, $s_offs, $sh_offs;		
+	}
+
+}
+
 
 $offs = $STREAM_Z_START;
 print $fh_asm	"\t\t.export music_z_stream\n";

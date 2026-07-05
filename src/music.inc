@@ -92,3 +92,19 @@ ENV_PHASE_SUSTAIN = 2
 		.byte p, dur
 	.endmacro
 
+
+	.macro MY_LOOP_END
+		.byte	$01
+	.endmacro
+
+	.macro MY_LOOP_START n
+		.byte	$02, (n - 1) & $FF
+	.endmacro
+
+	.macro MY_ENVELOPE decay_speed
+		.byte 3, decay_speed
+	.endmacro
+
+	.macro MY_NOTE p, dur
+		.byte p, dur
+	.endmacro
