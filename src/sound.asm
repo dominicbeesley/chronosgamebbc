@@ -674,108 +674,94 @@ song_z_portamento:
 @out:		rts
 
 
+	.macro M_OSC name
+		.local next, relc, relon, reloff, n, n2, onlp, offlp
+		dec	.ident(.sprintf("zp_osc_coarse%s_ctdn", name))
+		bne	next
+
+		lda	#$90
+		sta	sheila_SYSVIA_ora
+		sty	sheila_SYSVIA_orb
+		; do the period, on loads here to save time - we need a 16 cycle break between orb loads
+relc:		lda 	#1			; oscillator period reload
+		sta	.ident(.sprintf("zp_osc_coarse%s_ctdn", name))
+relon:		ldx	#1
+		lda	#8
+		bne	n			; timing - need 3 cycles
+n:		sta	sheila_SYSVIA_orb
+	
+onlp:		dex
+		bne	onlp
+
+		lda	#$9F
+		sta	sheila_SYSVIA_ora
+		sty	sheila_SYSVIA_orb
+		; do the off loads here to save time - we need a 16 cycle break between orb loads
+reloff:		ldx	#1
+		lda	#8
+		nop
+		nop
+		bne	n2			; timing - need 3 cycles
+n2:		sta	sheila_SYSVIA_orb
+
+offlp:		dex
+		bne	offlp
+next:
+
+.ident(.sprintf("oper_coarse%s", name)) = relc+1
+.ident(.sprintf("oper_on%s", name)) = relon+1
+.ident(.sprintf("oper_off%s", name)) = reloff+1
+
+	.endmacro
+
 song_beep:
 		jsr	beep_256
-		jsr	beep_256
+;		jsr	beep_256
 		jsr	beep_256
 beep_256:
 ; Play a tone using variable width pulses with modulation
-beep256_lp:	
+beep256_lp:	ldy	#0		; used in sound pokes in macros
 
-		dec	zp_osc_coarseC_ctdn
-		bne	skip_osc_E
 
-		; osc C
-		lda	#$90
-oper_coarseC = *-1
-		sta	zp_osc_coarseC_ctdn
-		lda	#$90
-		POKEA
-		ldx	#10
-oper_onC = *-1
-@onclp:		dex
-		bne	@onclp
-		lda	#$9F
-		POKEA
-		ldx	#1
-oper_offC = *-1
-@offclp:		dex
-		bne	@offclp
 
-skip_osc_E:
+		M_OSC "C"
 
-		dec	zp_osc_coarseE_ctdn
-		bne	skip_osc_H
+		M_OSC "E"
 
-		; osc E
-		lda	#$90
-oper_coarseE = *-1
-		sta	zp_osc_coarseE_ctdn
-		lda	#$90
-		POKEA
-		ldx	#10
-oper_onE = *-1
-@onelp:		dex
-		bne	@onelp
-		lda	#$9F
-		POKEA
-		ldx	#1
-oper_offE = *-1
-@offelp:		dex
-		bne	@offelp
+		M_OSC "H"
 
-skip_osc_H:
+		lda	zp_echo
+		bne	echo
+		M_OSC "D"
+		jmp	noecho
+echo:		nop
+		nop
+		nop
+		nop
+		jmp	noecho
+noecho:
 
-		dec	zp_osc_coarseH_ctdn
-		bne	skip_osc_D
 
-		; osc H
-		lda	#$20
-oper_coarseH := *-1
-		sta	zp_osc_coarseH_ctdn
-		lda	#$90
-		POKEA
-		ldx	#1
-oper_onH = *-1
-@onhlp:		dex
-		bne	@onhlp
-		lda	#$9F
-		POKEA
-		ldx	#1
-oper_offH = *-1
-@offhlp:		dex
-		bne	@offhlp
+		nop
+		nop 
+		nop 
+		nop
 
-skip_osc_D:
+		nop
+		nop 
+		nop 
+		nop
 
-		dec	zp_osc_coarseD_ctdn
-		bne	skip_osc_done
+		lda	zp_beeb256
+		ror	A
+		bcc	@notL
 
-		; osc D
-		lda	#$16
-oper_coarseD := *-1
-		sta	zp_osc_coarseD_ctdn
-		lda	zp_echo			;; TODO: remove this and pick up from echo buffer
-		bne	@skddd
-		lda	#$90
-		POKEA
-@skddd:		ldx	#4
-oper_onD = *-1
-@ondlp:		dex
-		bne	@ondlp
-		lda	#$9F
-		POKEA
-		ldx	#1
-oper_offD = *-1
-@offdlp:		dex
-		bne	@offdlp
+		nop 
+		nop 
+		nop 
+		nop 
+@notL:		
 
-skip_osc_done:
-
-		ldx	#1
-@dlp:		jsr	wait
-		dex
-		bne	@dlp
 		dec	zp_beeb256
 		beq	beeb256_ex
 		jmp	beep256_lp
