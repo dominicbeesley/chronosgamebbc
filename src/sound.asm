@@ -828,8 +828,10 @@ song_z_envelope_exit:
 song_z_portamento:
 		ldy	zp_z_glide_flag
 		beq	@nog
-		ldy	zp_z_glide_speed
 		ldx	zp_z_glide_pitch_acc
+		cpx	zp_z_glide_pitch_target	; add extra compare to allow envelope to complete
+		beq	@nog
+		ldy	zp_z_glide_speed
 @glide_lp:	cpx	zp_z_glide_pitch_target
 		beq	@out
 		bcs	@over
