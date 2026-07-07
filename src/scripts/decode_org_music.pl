@@ -18,6 +18,15 @@ my $STREAM_Y_END = 0x7226;	# IX stream start
 my $STREAM_Z_START = 0x7226;	# IX stream start
 my $STREAM_Z_START_RUN = 0xED26;# IX stream start when copied to RAM
 my $STREAM_Z_END = 0x74C0;	# IX stream start
+
+my %precussion_streams = (
+	'effect_1' => 0xF6D5,
+	'effect_2' => 0xF6E7
+);
+
+my $EFFECT_1 = 0xF6D5;
+my $EFFECT_2 = 0xF6E7;
+
 my $bin = ();
 
 open (my $fh_bin, "<", $fn_bin) or Usage("Cannot open \"$fn_bin\" for input : $!");
@@ -70,14 +79,14 @@ while ($offs < 0x10000) {
 		} elsif ($x_sc == 0x02) {
 			printf $fh_asm "\t\tMX_ARP_RESTART\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x03) {
-			printf $fh_asm "\t\tMX_ARP_OFF\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+			printf $fh_asm "\t\tMX_PERC_OFF\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x04) {
-			printf $fh_asm "\t\tMX_ARP_ON_1\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+			printf $fh_asm "\t\tMX_PERC_PATTERN_1\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x05) {
-			printf $fh_asm "\t\tMX_ARP_ON_2\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+			printf $fh_asm "\t\tMX_PERC_PATTERN_2\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x08) {
 			my $ay_m = @bin[$offs++];
-			printf $fh_asm "\t\tMX_AY_MUL %d\t\t\t; \$%04X [\$%04X]\n", $ay_m, $s_offs, $sh_offs;
+			printf $fh_asm "\t\tMX_PERC_SPEED %d\t\t\t; \$%04X [\$%04X]\n", $ay_m, $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x09) {
 			$echo = 1;
 			printf $fh_asm "\t\tMX_ECHO_ON\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
@@ -161,7 +170,23 @@ while ($offs < $STREAM_Z_END) {
 
 }
 
+# TODO: find out where original patterns live
+for my $p_key (keys %precussion_streams) {
+	$offs = $precussion_streams{$p_key};
 
+	print $fh_asm	"\t\t.export perc_${p_key}_stream\n";
+	printf $fh_asm	"perc_%s_stream:\t; z stream starts at \$%04X [\$%04X]\n", $p_key, $offs;
+
+	while (1) {
+		my ($dur, $inst) = (@bin[$offs++], @bin[$offs++]);
+
+		print $fh_asm "\t\tPERC $dur, $inst\n";
+		if ($dur == 0xFF) {
+			last;
+		}
+	};
+
+}
 
 close $fh_asm;
 

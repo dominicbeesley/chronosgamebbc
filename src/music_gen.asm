@@ -3,21 +3,21 @@
 		.include "music.inc"
 		.export music_x_stream
 music_x_stream:	; X stream starts at $70E4 [$EBE4]
-		MX_AY_MUL 1			; $70E4 [$EBE4]
-		MX_ARP_OFF			; $70E7 [$EBE7]
+		MX_PERC_SPEED 1			; $70E4 [$EBE4]
+		MX_PERC_OFF			; $70E7 [$EBE7]
 		MX_ECHO_OFF			; $70E9 [$EBE9]
 		MX_CMD_ENVELOPE	1, 2, 3, 1	; $70EB [$EBEB]
 		MX_CMD_ENVELOPE	0, 0, 3, 1	; $70F1 [$EBF1]
-		MX_ARP_ON_2			; $70F7 [$EBF7]
+		MX_PERC_PATTERN_2			; $70F7 [$EBF7]
 		MX_NOTE_NECHO $71,$87,$AA,$06	; $70F9 [$EBF9]
-		MX_ARP_ON_2			; $70FD [$EBFD]
+		MX_PERC_PATTERN_2			; $70FD [$EBFD]
 		MX_NOTE_NECHO $65,$78,$97,$06	; $70FF [$EBFF]
-		MX_ARP_ON_2			; $7103 [$EC03]
+		MX_PERC_PATTERN_2			; $7103 [$EC03]
 		MX_NOTE_NECHO $5F,$71,$8F,$06	; $7105 [$EC05]
-		MX_ARP_ON_2			; $7109 [$EC09]
+		MX_PERC_PATTERN_2			; $7109 [$EC09]
 		MX_NOTE_NECHO $55,$65,$7F,$06	; $710B [$EC0B]
-		MX_AY_MUL 128			; $710F [$EC0F]
-		MX_ARP_ON_1			; $7112 [$EC12]
+		MX_PERC_SPEED 128			; $710F [$EC0F]
+		MX_PERC_PATTERN_1			; $7112 [$EC12]
 		MX_NOTE_NECHO $71,$97,$B5,$40	; $7114 [$EC14]
 		MX_ECHO_ON			; $7118 [$EC18]
 
@@ -29,8 +29,8 @@ music_x_stream:	; X stream starts at $70E4 [$EBE4]
 		MX_NOTE_ECHO $97,$B4,$0E	; $712E [$EC2E]
 		MX_LOOP_END			; $7131 [$EC31]
 
-		MX_AY_MUL 2			; $7132 [$EC32]
-		MX_ARP_ON_2			; $7135 [$EC35]
+		MX_PERC_SPEED 2			; $7132 [$EC32]
+		MX_PERC_PATTERN_2			; $7135 [$EC35]
 
 		MX_LOOP_START	16;		; $7137 [$EC37]
 		MX_CMD_ENVELOPE	0, 0, 2, 1	; $7139 [$EC39]
@@ -49,8 +49,8 @@ music_x_stream:	; X stream starts at $70E4 [$EBE4]
 		MX_NOTE_ECHO $97,$5F,$0E	; $7163 [$EC63]
 		MX_LOOP_END			; $7166 [$EC66]
 
-		MX_AY_MUL 2			; $7167 [$EC67]
-		MX_ARP_ON_1			; $716A [$EC6A]
+		MX_PERC_SPEED 2			; $7167 [$EC67]
+		MX_PERC_PATTERN_1			; $716A [$EC6A]
 		MX_ECHO_OFF			; $716C [$EC6C]
 		MX_CMD_ENVELOPE	0, 0, 1, 1	; $716E [$EC6E]
 
@@ -63,17 +63,17 @@ music_x_stream:	; X stream starts at $70E4 [$EBE4]
 		MX_LOOP_END			; $718A [$EC8A]
 
 		MX_CMD_ENVELOPE	0, 0, 0, 1	; $718B [$EC8B]
-		MX_AY_MUL 64			; $7191 [$EC91]
-		MX_ARP_ON_2			; $7194 [$EC94]
+		MX_PERC_SPEED 64			; $7191 [$EC91]
+		MX_PERC_PATTERN_2			; $7194 [$EC94]
 		MX_NOTE_NECHO $65,$7F,$AA,$0C	; $7196 [$EC96]
-		MX_ARP_ON_2			; $719A [$EC9A]
+		MX_PERC_PATTERN_2			; $719A [$EC9A]
 		MX_NOTE_NECHO $71,$87,$AA,$10	; $719C [$EC9C]
-		MX_ARP_ON_2			; $71A0 [$ECA0]
+		MX_PERC_PATTERN_2			; $71A0 [$ECA0]
 		MX_NOTE_NECHO $71,$8F,$BE,$18	; $71A2 [$ECA2]
-		MX_ARP_ON_2			; $71A6 [$ECA6]
+		MX_PERC_PATTERN_2			; $71A6 [$ECA6]
 		MX_NOTE_NECHO $7F,$97,$BE,$40	; $71A8 [$ECA8]
-		MX_AY_MUL 2			; $71AC [$ECAC]
-		MX_ARP_ON_1			; $71AF [$ECAF]
+		MX_PERC_SPEED 2			; $71AC [$ECAC]
+		MX_PERC_PATTERN_1			; $71AF [$ECAF]
 		MX_NOTE_NECHO $65,$7F,$AA,$20	; $71B1 [$ECB1]
 		MX_NOTE_NECHO $3F,$7F,$FE,$04	; $71B5 [$ECB5]
 		MX_END				; $71B9 [$ECB9]
@@ -502,3 +502,44 @@ music_z_stream:	; z stream starts at $7226 [$ED26]
 		MZ_NOTE $FE,$40			; $74BB [$EFBB]
 		MZ_GLIDE_OFF			; $74BD [$EFBD]
 		MZ_NOTE $7F,$F3			; $74BF [$EFBF]
+		.export perc_effect_2_stream
+perc_effect_2_stream:	; z stream starts at $F6E7 [$0000]
+		PERC 8, 0
+		PERC 8, 3
+		PERC 6, 0
+		PERC 2, 0
+		PERC 2, 3
+		PERC 4, 0
+		PERC 2, 4
+		PERC 8, 0
+		PERC 4, 3
+		PERC 4, 0
+		PERC 8, 0
+		PERC 4, 3
+		PERC 2, 0
+		PERC 2, 0
+		PERC 8, 0
+		PERC 8, 3
+		PERC 6, 0
+		PERC 2, 0
+		PERC 2, 3
+		PERC 6, 0
+		PERC 8, 0
+		PERC 4, 3
+		PERC 4, 0
+		PERC 8, 0
+		PERC 2, 1
+		PERC 2, 3
+		PERC 4, 3
+		PERC 255, 255
+		.export perc_effect_1_stream
+perc_effect_1_stream:	; z stream starts at $F6D5 [$0000]
+		PERC 8, 0
+		PERC 8, 2
+		PERC 4, 3
+		PERC 2, 0
+		PERC 4, 3
+		PERC 2, 0
+		PERC 2, 3
+		PERC 2, 0
+		PERC 255, 255

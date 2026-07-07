@@ -20,19 +20,19 @@ ENV_PHASE_SUSTAIN = 2
 		.byte	$FF, 1, phase, attack_speed, decay_speed, decay_target
 	.endmacro
 
-	.macro MX_ARP_RESTART
+	.macro MX_PERC_RESTART
 	.endmacro
 
-	.macro MX_ARP_OFF
+	.macro MX_PERC_OFF
 	.endmacro
 
-	.macro MX_ARP_ON_1
+	.macro MX_PERC_PATTERN_1
 	.endmacro
 
-	.macro MX_ARP_ON_2
+	.macro MX_PERC_PATTERN_2
 	.endmacro
 
-	.macro MX_AY_MUL n
+	.macro MX_PERC_SPEED n
 	.endmacro
 
 	.macro MX_ECHO_ON
@@ -107,4 +107,9 @@ ENV_PHASE_SUSTAIN = 2
 
 	.macro MY_NOTE p, dur
 		.byte p, dur
+	.endmacro
+
+
+	.macro PERC dur, inst
+		.byte dur, inst
 	.endmacro
