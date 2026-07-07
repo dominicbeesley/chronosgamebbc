@@ -22,7 +22,7 @@
 			pha
 			lda	#d
 			POKEA	
-			pha
+			pla
 		.endmacro
 
 		.macro POKESN channel, type, data
@@ -190,6 +190,14 @@ song_init:
 		sta	zp_song_z_loop_ptr+1
 
 
+		jmp	song_x_note_ctdnlp
+
+song_exeunt:	lda	#0
+		sta	sheila_SYSVIA_ddra
+		cli
+
+		rts
+
 
 song_x_note_ctdnlp:
 		dec	zp_song_x_dur_ctdn
@@ -201,7 +209,7 @@ song_x_parse_againy0:
 		; we assume there's a note before Y runs out!
 song_x_parse_again:
 		lda	(zp_song_x_ptr),Y
-		beq	song_init
+		beq	song_exeunt
 		iny
 		cmp	#1
 		bne	@sk_loop_start
@@ -595,6 +603,19 @@ song_z_parse_skip:
 		adc	#'0'
 		sta	$7C02
 
+		tsx
+		txa
+		pha
+		lsr	A
+		lsr	A
+		lsr	A
+		lsr	A
+		jsr	hexA
+		sta	$7C10
+		pla
+		jsr	hexA
+		sta	$7C11
+
 
 		lda	zp_flag_half_speed
 		eor	#$FF
@@ -805,28 +826,34 @@ song_z_envelope_exit:
 
 
 song_z_portamento:
+		ldy	zp_z_glide_flag
+		beq	@nog
 		ldy	zp_z_glide_speed
-@glide_lp:	ldx	zp_z_glide_pitch_acc
-		cpx	zp_z_glide_pitch_target
+		ldx	zp_z_glide_pitch_acc
+@glide_lp:	cpx	zp_z_glide_pitch_target
 		beq	@out
 		bcs	@over
 		inx
 		inx
 @over:		dex		
-		stx	zp_z_glide_pitch_acc
 		dey
 		bne	@glide_lp
 		txa
+		stx	zp_z_glide_pitch_acc
+@out:		txa
 		jmp	osc_c_pitch_set
-@out:		rts
+@nog:		rts
 
-
-	.macro M_OSC name
+	.macro M_OSC name, mute
 		.local next, relc, relon, reloff, n, n2, onlp, offlp
 		dec	.ident(.sprintf("zp_osc_coarse%s_ctdn", name))
 		bne	next
-
+	
+	.if mute
+		lda	#$9F
+	.else
 		lda	#$90
+	.endif
 		sta	sheila_SYSVIA_ora
 		sty	sheila_SYSVIA_orb
 		; do the period, on loads here to save time - we need a 16 cycle break between orb loads
@@ -863,7 +890,7 @@ next:
 
 song_beep:
 		jsr	beep_256
-		jsr	beep_256
+		;jsr	beep_256
 		jsr	beep_256
 beep_256:
 ; Play a tone using variable width pulses with modulation
@@ -871,15 +898,15 @@ beep256_lp:	ldy	#0		; used in sound pokes in macros
 
 
 
-		M_OSC "C"
+		M_OSC "C", 0
 
-		M_OSC "E"
+		M_OSC "E", 0
 
-		M_OSC "H"
+		M_OSC "H", 0
 
 		lda	zp_echo
 		bne	echo
-		M_OSC "D"
+		M_OSC "D", 0
 		jmp	noecho
 echo:		nop
 		nop
@@ -893,7 +920,7 @@ noecho:
 		ror	A
 		bcc	notL
 
-		M_OSC "L"
+		M_OSC "L", 0
 notL:		
 
 		dec	zp_beeb256
@@ -952,6 +979,13 @@ HERE:		jmp HERE
 anRTS:		rts
 
 
+hexA:		AND	#$0F
+		CMP	#$0A		; set carry for +1 if >9	
+		BCC	@noa	; branch if <=9
+		ADC	#6		; adjust if A to F
+					; (six plus carry = 7!)
+@noa:		ADC	#'0'		; add ASCII "0"
+		rts
 
 		.data
 
