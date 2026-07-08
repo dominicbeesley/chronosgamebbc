@@ -21,18 +21,23 @@ ENV_PHASE_SUSTAIN = 2
 	.endmacro
 
 	.macro MX_PERC_RESTART
+		.byte $FF, 2
 	.endmacro
 
 	.macro MX_PERC_OFF
+		.byte $FF, 3
 	.endmacro
 
 	.macro MX_PERC_PATTERN_1
+		.byte $FF, 4
 	.endmacro
 
 	.macro MX_PERC_PATTERN_2
+		.byte $FF, 5
 	.endmacro
 
 	.macro MX_PERC_SPEED n
+		.byte $FF, 8, n
 	.endmacro
 
 	.macro MX_ECHO_ON

@@ -98,6 +98,10 @@ zp_z_glide_speed:		.res	1
 zp_z_glide_pitch_acc:	.res	1
 zp_z_glide_pitch_target:	.res	1
 
+zp_perc_ptr:		.res	2
+zp_perc_offs:		.res	1
+zp_perc_multiplier:	.res	1
+zp_perc_dur_ctdn:		.res	1
 
 zp_echo:			.res	1
 
@@ -156,6 +160,7 @@ song_init:
 		stx	zp_flag_half_speed
 		stx	zp_z_glide_flag
 		;;stx	_oper_echo_handler+1
+		stx	zp_perc_dur_ctdn		; when 0 blocks 
 		inx
 		stx	zp_song_x_loop_ctr
 		stx	zp_song_x_dur_ctdn
@@ -282,7 +287,49 @@ song_x_parse_again:
 		jmp	song_x_parse_again
 
 
-@not_env:	jmp	song_x_parse_again	; TODO-shorten?
+@not_env:	cmp	#2
+		bne	@not_perc_restart
+
+@perc_restart:	ldx	#0
+		stx	zp_perc_offs
+		inx
+		stx	zp_perc_dur_ctdn
+		jmp 	song_x_parse_again
+
+@not_perc_restart:
+		cmp	#3
+		bne	@not_perc_off
+		ldx	#0
+		stx	zp_perc_offs
+		stx	zp_perc_dur_ctdn
+		jmp 	song_x_parse_again
+
+@not_perc_off:	cmp	#4
+		bne	@not_perc_pat_1
+
+		ldx	#<perc_effect_1_stream
+		lda	#>perc_effect_1_stream
+		bne	@ss			; always
+
+@not_perc_pat_1:	cmp	#5
+		bne	@not_perc_pat_2
+
+		ldx	#<perc_effect_2_stream
+		lda	#>perc_effect_2_stream
+@ss:		stx	zp_perc_ptr
+		sta	zp_perc_ptr+1
+		jmp	@perc_restart		; always
+
+@not_perc_pat_2:	cmp	#8
+		bne	@not_perc_speed
+
+		lda	(zp_song_x_ptr),Y
+		iny
+		sta	zp_perc_multiplier
+
+		jmp	@perc_restart
+
+@not_perc_speed:	jmp	song_x_parse_again	; TODO-shorten?
 
 @sk_not_ff_cmd:
 		;load note value
@@ -590,6 +637,7 @@ song_z_parse_skip:
 		jsr	song_y_envelope		; TODO: move inline
 		jsr	song_z_envelope		; TODO: move inline
 		jsr	song_z_portamento		; TODO: move inline
+		jsr	song_percussion		; TODO: move inline
 		jsr	song_beep
 
 		clc	
@@ -603,8 +651,7 @@ song_z_parse_skip:
 		adc	#'0'
 		sta	$7C02
 
-		tsx
-		txa
+		lda	zp_perc_dur_ctdn
 		pha
 		lsr	A
 		lsr	A
@@ -616,6 +663,53 @@ song_z_parse_skip:
 		jsr	hexA
 		sta	$7C11
 
+		lda	zp_perc_multiplier
+		pha
+		lsr	A
+		lsr	A
+		lsr	A
+		lsr	A
+		jsr	hexA
+		sta	$7C12
+		pla
+		jsr	hexA
+		sta	$7C13
+
+		lda	zp_perc_offs
+		pha
+		lsr	A
+		lsr	A
+		lsr	A
+		lsr	A
+		jsr	hexA
+		sta	$7C14
+		pla
+		jsr	hexA
+		sta	$7C15
+
+		lda	zp_perc_ptr+1
+		pha
+		lsr	A
+		lsr	A
+		lsr	A
+		lsr	A
+		jsr	hexA
+		sta	$7C16
+		pla
+		jsr	hexA
+		sta	$7C17
+
+		lda	zp_perc_ptr
+		pha
+		lsr	A
+		lsr	A
+		lsr	A
+		lsr	A
+		jsr	hexA
+		sta	$7C18
+		pla
+		jsr	hexA
+		sta	$7C19
 
 		lda	zp_flag_half_speed
 		eor	#$FF
@@ -649,6 +743,68 @@ osc_c_pitch_set:
 		sta	oper_offC
 @sk:		rts
 
+
+;
+; ####   #####  ####    ###   #   #   ###    ###    ###    ###   #   #
+; #   #  #      #   #  #   #  #   #  #   #  #   #    #    #   #  #   #
+; #   #  #      #   #  #      #   #  #      #        #    #   #  ##  #
+; ####   ####   ####   #      #   #   ###    ###     #    #   #  # # #
+; #      #      # #    #      #   #      #      #    #    #   #  #  ##
+; #      #      #  #   #   #  #   #  #   #  #   #    #    #   #  #   #
+; #      #####  #   #   ###    ###    ###    ###    ###    ###   #   #
+
+song_percussion:	ldx	zp_perc_dur_ctdn
+		dex
+		cpx	#$FF
+		beq	@perc_exit
+		stx	zp_perc_dur_ctdn
+		cpx	#0
+		bne	@perc_exit
+
+		; we now have to make a noise of some sort!
+		ldx	zp_perc_offs
+		txa
+		tay
+		inx
+		inx
+		stx	zp_perc_offs
+		lda	(zp_perc_ptr),Y
+		iny
+		sta	zp_temp1	
+		ldx	zp_perc_multiplier
+		dex
+		beq	@nomul
+@mullp:		clc
+		adc	zp_temp1
+		dex
+		bne	@mullp
+@nomul:		sta	zp_perc_dur_ctdn
+
+		; dispatch instrument
+		lda	(zp_perc_ptr),Y
+		iny
+
+		lda	#$90
+		POKEA
+
+		ldx	#0
+@w:		dex
+		bne	@w
+
+		lda	#$9F
+		POKEA
+
+
+		; check if next note is a restart
+		lda	(zp_perc_ptr),Y
+		cmp	#$FF
+		bne	@perc_not_restart
+		ldx	#0
+		stx	zp_perc_offs
+@perc_not_restart:		
+
+
+@perc_exit:	rts		
 
 
 ;
