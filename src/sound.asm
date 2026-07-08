@@ -103,6 +103,8 @@ zp_perc_offs:		.res	1
 zp_perc_multiplier:	.res	1
 zp_perc_dur_ctdn:		.res	1
 
+zp_perc_instr_ptr:	.res	2
+
 zp_echo:			.res	1
 
 zp_flag_half_speed:	.res	1
@@ -756,10 +758,10 @@ osc_c_pitch_set:
 song_percussion:	ldx	zp_perc_dur_ctdn
 		dex
 		cpx	#$FF
-		beq	@perc_exit
+		beq	perc_exit
 		stx	zp_perc_dur_ctdn
 		cpx	#0
-		bne	@perc_exit
+		bne	perc_exit
 
 		; we now have to make a noise of some sort!
 		ldx	zp_perc_offs
@@ -782,18 +784,27 @@ song_percussion:	ldx	zp_perc_dur_ctdn
 
 		; dispatch instrument
 		lda	(zp_perc_ptr),Y
+		tax
 		iny
+		tya
+		pha					; save pointer Y can be used in instr
+		txa
 
-		lda	#$90
-		POKEA
+		asl	A
+		tax
+		cpx	#8
+		bcs	perc_continue_after_bop
 
-		ldx	#0
-@w:		dex
-		bne	@w
+		lda	perc_instruments_tbl,X
+		sta	perc_instruments_jmp+1
+		lda	perc_instruments_tbl+1,X
+		sta	perc_instruments_jmp+2
+perc_instruments_jmp:
+		jsr	perc_instruments_jmp
 
-		lda	#$9F
-		POKEA
-
+perc_continue_after_bop:
+		pla
+		tay
 
 		; check if next note is a restart
 		lda	(zp_perc_ptr),Y
@@ -804,7 +815,83 @@ song_percussion:	ldx	zp_perc_dur_ctdn
 @perc_not_restart:		
 
 
-@perc_exit:	rts		
+perc_exit:	rts		
+
+
+perc_do_kick1:	ldx	#2
+		stx	zp_temp1
+		ldx	#$bc
+@lp:		nop 
+		nop
+		nop
+		nop
+		dex
+		bne	@lp
+		dec	zp_temp1
+		bne	@lp
+
+
+		lda	#$90
+		POKEA
+
+		ldx	#0
+@w:		dex
+		bne	@w
+		rts
+
+perc_do_nowt:	rts
+
+PERC_CLOSED_BASE = $C400
+
+perc_do_closed:	lda	#<PERC_CLOSED_BASE
+		sta	zp_perc_instr_ptr
+		lda	#>PERC_CLOSED_BASE
+		sta	zp_perc_instr_ptr+1
+		ldx	#5			; outer loop ctr
+		stx	zp_temp1
+@lop:		lda	#$90
+		POKEA
+		ldy	#0
+		lda	(zp_perc_instr_ptr),Y		
+		tax
+		jsr	perc_instr_ptr_inc
+
+@l1:		dex
+		bne	@l1
+
+		lda	#$9F
+		POKEA
+		ldy	#0
+		lda	(zp_perc_instr_ptr),Y		
+		tax
+		jsr	perc_instr_ptr_inc
+
+@l2:		dex
+		bne	@l2
+
+		ldx	#$78
+@l3:		dex
+		bne	@l3
+
+		dec	zp_temp1
+		bne	@lop
+
+		rts
+perc_instr_ptr_inc:
+		inc 	zp_perc_instr_ptr
+		bne	@r
+		inc	zp_perc_instr_ptr+1
+@r:		rts
+
+
+
+perc_instruments_tbl:
+		.addr	perc_do_kick1	; 0
+		.addr	perc_do_nowt	; 1	TODO
+		.addr	perc_do_nowt	; 2	TODO
+		.addr	perc_do_closed	; 3
+
+
 
 
 ;
@@ -1056,15 +1143,15 @@ beep256_lp:	ldy	#0		; used in sound pokes in macros
 
 
 
-		M_OSC "C", 0
+		M_OSC "C", 1
 
-		M_OSC "E", 0
+		M_OSC "E", 1
 
-		M_OSC "H", 0
+		M_OSC "H", 1
 
 		lda	zp_echo
 		bne	echo
-		M_OSC "D", 0
+		M_OSC "D", 1
 		jmp	noecho
 echo:		nop
 		nop
@@ -1078,7 +1165,7 @@ noecho:
 		ror	A
 		bcc	notL
 
-		M_OSC "L", 0
+		M_OSC "L", 1
 notL:		
 
 		dec	zp_beeb256
