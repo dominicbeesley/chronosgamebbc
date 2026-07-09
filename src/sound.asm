@@ -792,7 +792,7 @@ song_percussion:	ldx	zp_perc_dur_ctdn
 
 		asl	A
 		tax
-		cpx	#8
+		cpx	#10
 		bcs	perc_continue_after_bop
 
 		lda	perc_instruments_tbl,X
@@ -836,6 +836,16 @@ perc_do_kick1:	ldx	#2
 
 		ldx	#0
 @w:		dex
+		bne	@w
+		rts
+
+perc_do_kick2:	lda	#$90
+		POKEA
+		ldy	#10
+		ldx	#0
+@w:		dex
+		bne	@w
+		dey	
 		bne	@w
 		rts
 
@@ -883,13 +893,80 @@ perc_instr_ptr_inc:
 		inc	zp_perc_instr_ptr+1
 @r:		rts
 
+PERC_TING_BASE = $C400
+
+perc_do_ting2:	lda	#<PERC_TING_BASE
+		sta	zp_perc_instr_ptr
+		lda	#>PERC_TING_BASE
+		sta	zp_perc_instr_ptr+1
+		lda	#$1A
+		sta	zp_temp1			; outer loop
+@olp:		lda	#$90
+		POKEA
+		ldx	zp_temp1
+@onlp:		dex
+		bne	@onlp
+		lda	#$9F
+		POKEA
+		lda	#$1B
+		sec
+		sbc	zp_temp1
+		tax
+@offlp:		dex
+		bne	@offlp
+		
+		ldy	#0
+		lda	(zp_perc_instr_ptr),Y
+		jsr	perc_instr_ptr_inc
+		tax
+@plp:		dex
+		bne	@plp
+
+		dec	zp_temp1
+		dec	zp_temp1
+		bne	@olp
+		rts
+
+perc_do_ting1:	lda	#<PERC_TING_BASE
+		sta	zp_perc_instr_ptr
+		lda	#>PERC_TING_BASE
+		sta	zp_perc_instr_ptr+1
+		lda	#$1E
+		sta	zp_temp1			; outer loop
+@olp:		lda	#$90
+		POKEA
+		ldx	zp_temp1
+@onlp:		dex
+		bne	@onlp
+		lda	#$9F
+		POKEA
+		lda	#$1F
+		sec
+		sbc	zp_temp1
+		tax
+@offlp:		dex
+		bne	@offlp
+		
+		ldy	#0
+		lda	(zp_perc_instr_ptr),Y
+		jsr	perc_instr_ptr_inc
+		tax
+@plp:		dex
+		bne	@plp
+
+		dec	zp_temp1
+		dec	zp_temp1
+		bne	@olp
+		rts
+
 
 
 perc_instruments_tbl:
 		.addr	perc_do_kick1	; 0
-		.addr	perc_do_nowt	; 1	TODO
-		.addr	perc_do_nowt	; 2	TODO
+		.addr	perc_do_ting1	; 1	
+		.addr	perc_do_kick2	; 2	
 		.addr	perc_do_closed	; 3
+		.addr	perc_do_ting2	; 4
 
 
 
@@ -1143,15 +1220,15 @@ beep256_lp:	ldy	#0		; used in sound pokes in macros
 
 
 
-		M_OSC "C", 1
+		M_OSC "C", 0
 
-		M_OSC "E", 1
+		M_OSC "E", 0
 
-		M_OSC "H", 1
+		M_OSC "H", 0
 
 		lda	zp_echo
 		bne	echo
-		M_OSC "D", 1
+		M_OSC "D", 0
 		jmp	noecho
 echo:		nop
 		nop
@@ -1165,7 +1242,7 @@ noecho:
 		ror	A
 		bcc	notL
 
-		M_OSC "L", 1
+		M_OSC "L", 0
 notL:		
 
 		dec	zp_beeb256
