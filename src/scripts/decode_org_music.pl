@@ -155,11 +155,11 @@ while ($offs < $STREAM_Z_END) {
 		} elsif ($x_sc == 0x04) {
 			printf $fh_asm "\t\tMZ_ENVELOPE\t%d, %d, %d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], @bin[$offs++], @bin[$offs++], $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x05) {
-			printf $fh_asm "\t\tMZ_ECHO_VOLUME\t%d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], $s_offs, $sh_offs;
+			printf $fh_asm "\t\tMZ_ECHO_DEPTH\t%d\t\t; \$%04X [\$%04X]\n", @bin[$offs++], $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x06) {
-			printf $fh_asm "\t\tMZ_ECHO_ON\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+			printf $fh_asm "\t\tMZ_ECHO_PITCH_ON\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} elsif ($x_sc == 0x07) {
-			printf $fh_asm "\t\tMZ_ECHO_OFF\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
+			printf $fh_asm "\t\tMZ_ECHO_PITCH_OFF\t\t\t; \$%04X [\$%04X]\n", $s_offs, $sh_offs;
 		} else {
 			printf $fh_asm "\t\t; Z: Unknown F03 %02X\t\t\t; \$%04X [\$%04X]\n", $x_sc, $s_offs, $sh_offs;
 		}

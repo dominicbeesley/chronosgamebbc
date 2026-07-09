@@ -162,8 +162,8 @@ music_z_stream:	; z stream starts at $7226 [$ED26]
 		MZ_NOTE $65,$04			; $7246 [$ED46]
 		MZ_NOTE $7F,$04			; $7248 [$ED48]
 		MZ_NOTE $5A,$80			; $724A [$ED4A]
-		MZ_ECHO_VOLUME	3		; $724C [$ED4C]
-		MZ_ECHO_ON			; $724F [$ED4F]
+		MZ_ECHO_DEPTH	3		; $724C [$ED4C]
+		MZ_ECHO_PITCH_ON			; $724F [$ED4F]
 		MZ_NOTE $7F,$18			; $7251 [$ED51]
 		MZ_NOTE $87,$04			; $7253 [$ED53]
 		MZ_NOTE $7F,$18			; $7255 [$ED55]
@@ -190,8 +190,8 @@ music_z_stream:	; z stream starts at $7226 [$ED26]
 		MZ_GLIDE_ON			; $727A [$ED7A]
 		MZ_NOTE $55,$28			; $727C [$ED7C]
 		MZ_GLIDE_OFF			; $727E [$ED7E]
-		MZ_ECHO_OFF			; $7280 [$ED80]
-		MZ_ECHO_VOLUME	10		; $7282 [$ED82]
+		MZ_ECHO_PITCH_OFF			; $7280 [$ED80]
+		MZ_ECHO_DEPTH	10		; $7282 [$ED82]
 
 		MZ_LOOP_START	2;		; $7285 [$ED85]
 		MZ_NOTE $55,$04			; $7287 [$ED87]
@@ -313,7 +313,7 @@ music_z_stream:	; z stream starts at $7226 [$ED26]
 		MZ_NOTE $5F,$10			; $7362 [$EE62]
 		MZ_NOTE $6B,$10			; $7364 [$EE64]
 		MZ_NOTE $71,$10			; $7366 [$EE66]
-		MZ_ECHO_VOLUME	0		; $7368 [$EE68]
+		MZ_ECHO_DEPTH	0		; $7368 [$EE68]
 		MZ_GLIDE_OFF			; $736B [$EE6B]
 
 		MZ_LOOP_START	4;		; $736D [$EE6D]
@@ -335,7 +335,7 @@ music_z_stream:	; z stream starts at $7226 [$ED26]
 		MZ_NOTE $8F,$04			; $738D [$EE8D]
 		MZ_LOOP_END			; $738F [$EE8F]
 
-		MZ_ECHO_VOLUME	9		; $7390 [$EE90]
+		MZ_ECHO_DEPTH	9		; $7390 [$EE90]
 
 		MZ_LOOP_START	4;		; $7393 [$EE93]
 		MZ_NOTE $6B,$04			; $7395 [$EE95]
@@ -502,6 +502,17 @@ music_z_stream:	; z stream starts at $7226 [$ED26]
 		MZ_NOTE $FE,$40			; $74BB [$EFBB]
 		MZ_GLIDE_OFF			; $74BD [$EFBD]
 		MZ_NOTE $7F,$F3			; $74BF [$EFBF]
+		.export perc_effect_1_stream
+perc_effect_1_stream:	; z stream starts at $F6D5 [$0000]
+		PERC 8, 0
+		PERC 8, 2
+		PERC 4, 3
+		PERC 2, 0
+		PERC 4, 3
+		PERC 2, 0
+		PERC 2, 3
+		PERC 2, 0
+		PERC 255, 255
 		.export perc_effect_2_stream
 perc_effect_2_stream:	; z stream starts at $F6E7 [$0000]
 		PERC 8, 0
@@ -531,15 +542,4 @@ perc_effect_2_stream:	; z stream starts at $F6E7 [$0000]
 		PERC 2, 1
 		PERC 2, 3
 		PERC 4, 3
-		PERC 255, 255
-		.export perc_effect_1_stream
-perc_effect_1_stream:	; z stream starts at $F6D5 [$0000]
-		PERC 8, 0
-		PERC 8, 2
-		PERC 4, 3
-		PERC 2, 0
-		PERC 4, 3
-		PERC 2, 0
-		PERC 2, 3
-		PERC 2, 0
 		PERC 255, 255

@@ -84,13 +84,16 @@ ENV_PHASE_SUSTAIN = 2
 		.byte 3, 4, phase, attack_speed, decay_speed
 	.endmacro
 
-	.macro MZ_ECHO_VOLUME n
+	.macro MZ_ECHO_DEPTH n
+		.byte 3, 5, n
 	.endmacro
 
-	.macro MZ_ECHO_ON
+	.macro MZ_ECHO_PITCH_ON
+		.byte 3, 6
 	.endmacro
 
-	.macro MZ_ECHO_OFF
+	.macro MZ_ECHO_PITCH_OFF
+		.byte 3, 7
 	.endmacro
 
 	.macro MZ_NOTE p, dur

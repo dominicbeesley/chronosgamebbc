@@ -105,7 +105,10 @@ zp_perc_dur_ctdn:		.res	1
 
 zp_perc_instr_ptr:	.res	2
 
-zp_echo:			.res	1
+zp_echo_flag:		.res	1		; FF for echo 0 for no echo
+zp_echo_depth:		.res	1
+zp_echo_input_index:	.res	1
+zp_echo_pitch:		.res	1
 
 zp_flag_half_speed:	.res	1
 
@@ -158,7 +161,9 @@ song_init:
 		stx	zp_beeb256
 		stx	zp_x_env_phase_def		
 		stx	zp_z_env_phase_def		
-		stx	zp_echo
+		stx	zp_echo_flag
+		stx	zp_echo_pitch
+		stx	zp_echo_input_index
 		stx	zp_flag_half_speed
 		stx	zp_z_glide_flag
 		;;stx	_oper_echo_handler+1
@@ -173,6 +178,9 @@ song_init:
 		inx
 		stx	zp_x_env_phase_act
 		stx	zp_z_env_phase_act
+		inx
+		stx	zp_echo_depth
+
 
 		lda	#<music_x_stream
 		sta	zp_song_x_ptr
@@ -257,13 +265,13 @@ song_x_parse_again:
 		cmp	#9
 		bne	@not_echo_on
 		ldx	#$FF
-		stx	zp_echo
+		stx	zp_echo_flag
 		jmp	song_x_parse_again
 		bne	@not_echo_on
 @not_echo_on:	cmp	#10
 		bne	@not_echo_off
 		ldx	#0
-		stx	zp_echo
+		stx	zp_echo_flag
 		jmp	song_x_parse_again
 		bne	@not_echo_off
 @not_echo_off:	cmp	#1
@@ -354,7 +362,7 @@ song_x_parse_again:
 		sta	oper_offH
 		sta	oper_attackH_target
 
-		lda	zp_echo			; if echo is active - don't load D
+		lda	zp_echo_flag			; if echo is active - don't load D
 		bne	@skip_x_d
 		lda	(zp_song_x_ptr),Y
 		iny
@@ -379,7 +387,7 @@ song_x_parse_again:
 		jsr	calcon
 		sta	oper_onH
 
-		lda	zp_echo			; if echo is active - don't load D
+		lda	zp_echo_flag			; if echo is active - don't load D
 		bne	@skip_x_d2
 		lda	(zp_song_x_ptr),Y
 		iny
@@ -590,7 +598,30 @@ song_z_parse_again:
 
 		jmp	song_z_parse_again
 
-@sk_envelope:	jmp	song_z_parse_again
+@sk_envelope:	cmp	#5
+		bne	@sk_depth
+
+		lda	(zp_song_z_ptr),Y
+		and	#$F
+		iny
+		sta	zp_echo_depth
+		jmp	song_z_parse_again
+
+@sk_depth:	cmp	#5
+		bne	@sk_echo_pon
+
+		lda	#$FF
+		sta	zp_echo_pitch
+		jmp	song_z_parse_again
+
+@sk_echo_pon:	cmp	#5
+		bne	@sk_echo_poff
+
+		lda	#0
+		sta	zp_echo_pitch
+		jmp	song_z_parse_again		
+
+@sk_echo_poff:	jmp	song_z_parse_again
 
 
 @sk_sub_commands:
@@ -640,6 +671,7 @@ song_z_parse_skip:
 		jsr	song_z_envelope		; TODO: move inline
 		jsr	song_z_portamento		; TODO: move inline
 		jsr	song_percussion		; TODO: move inline
+		jsr	song_echo_apply
 		jsr	song_beep
 
 		clc	
@@ -745,6 +777,71 @@ osc_c_pitch_set:
 		sta	oper_offC
 @sk:		rts
 
+;
+; #####   ###   #   #   ###            #    ####   ####   #      #   #
+; #      #   #  #   #  #   #          # #   #   #  #   #  #      #   #
+; #      #      #   #  #   #         #   #  #   #  #   #  #       # #
+; ####   #      #####  #   #         #   #  ####   ####   #        #
+; #      #      #   #  #   #         #####  #      #      #        #
+; #      #   #  #   #  #   #         #   #  #      #      #        #
+; #####   ###   #   #   ###          #   #  #      #      #####    #
+;
+
+song_echo_apply:	
+		ldx	zp_echo_input_index
+		inx
+		txa
+		and	#$F
+		sta	zp_echo_input_index
+		asl	A
+		adc	zp_echo_input_index
+		tax				; X is pointer into echo buffer - index*3
+
+		lda	oper_coarseC
+		sta	echo_buffer, X
+		lda	oper_onC
+		sta	echo_buffer+1, X
+		lda	oper_offC
+		sta	echo_buffer+2, X
+
+		lda	zp_echo_flag
+		bpl	@ret
+
+
+		lda	zp_echo_input_index
+		sec
+		sbc	zp_echo_depth
+		and	#$F
+		sta	zp_temp1
+		asl	A
+		adc	zp_temp1
+		tax
+
+		lda	echo_buffer,X
+		tay
+		bit	zp_echo_pitch
+		bpl	@nopitch
+		iny
+@nopitch:	sty	oper_coarseD
+		lda	echo_buffer+1,X
+		lsr	a
+		sta	zp_temp1
+		lsr	a
+		lsr	a
+		clc
+		adc	zp_temp1
+		ora	#1
+		sta	oper_onD
+		lda	echo_buffer+2,X
+		lsr	a
+		sta	zp_temp1
+		lsr	a
+		lsr	a
+		clc
+		adc	zp_temp1
+		ora	#1
+		sta	oper_offD
+@ret:		rts		
 
 ;
 ; ####   #####  ####    ###   #   #   ###    ###    ###    ###   #   #
@@ -1210,15 +1307,13 @@ next:
 
 	.endmacro
 
-song_beep:
+song_beep:	ldy	#0		; used in sound pokes in macros
 		jsr	beep_256
-		;jsr	beep_256
+		jsr	beep_256
 		jsr	beep_256
 beep_256:
 ; Play a tone using variable width pulses with modulation
-beep256_lp:	ldy	#0		; used in sound pokes in macros
-
-
+beep256_lp:	
 
 		M_OSC "C", 0
 
@@ -1226,17 +1321,7 @@ beep256_lp:	ldy	#0		; used in sound pokes in macros
 
 		M_OSC "H", 0
 
-		lda	zp_echo
-		bne	echo
 		M_OSC "D", 0
-		jmp	noecho
-echo:		nop
-		nop
-		nop
-		nop
-		jmp	noecho
-noecho:
-
 
 		lda	zp_beeb256
 		ror	A
@@ -1311,5 +1396,6 @@ hexA:		AND	#$0F
 
 		.data
 
+echo_buffer:	.res	16*3
 
 		.end
