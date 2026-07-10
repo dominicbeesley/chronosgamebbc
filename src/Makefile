@@ -83,6 +83,8 @@ $(BUILD)/map.rom:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_map.rom))) map.cf
 	$(SCRIPTS)/ld65debugsymbols.pl $(basename $@).dbg $(basename $@).2.noi
 
 
+$(BUILD)/loader.o:	splash.mo7
+
 $(BUILD)/%.o: 	%.asm $(DEPS) 
 	$(AS) $(ASFLAGS) -o $@ -g -l $(basename $@).lst $<
 

@@ -252,7 +252,7 @@ rom_loaded:
 
 
 		; fade out
-
+.scope
 		ldx	#$7
 		stx	zp_tmp2			; number of fades
 @flp3:		ldx	#$4			; number of pages
@@ -288,6 +288,50 @@ rom_loaded:
 
 		dec	zp_tmp2
 		bne	@flp3
+.endscope
+
+		jsr	wait10vs
+		jsr	wait10vs
+		jsr	wait10vs
+
+
+		; fade ou2
+.scope
+		ldx	#$7
+		stx	zp_tmp2			; number of fades
+@flp3:		ldx	#$4			; number of pages
+		stx	zp_tmp
+		lda	#<MO7SCR
+		sta	zp_ptr
+		lda	#>MO7SCR
+		sta	zp_ptr+1
+		jsr	wait10vs
+@flp2:		ldy	#0
+@flp:		lda	(zp_ptr),Y
+		cmp	#17
+		bcc	@sk
+		cmp	#24
+		bcs	@sk
+@do:		sec
+		sbc	#1
+		cmp	#16
+		bne	@nxt
+@blk:		lda	#152		; conceal
+@nxt:		sta	(zp_ptr),Y		
+@sk:		iny
+		bne	@flp
+		inc	zp_ptr+1
+		dec	zp_tmp
+		bne	@flp2
+
+		dec	zp_tmp2
+		bne	@flp3
+.endscope
+
+		jsr	wait10vs
+		jsr	wait10vs
+		jsr	wait10vs
+
 
 
 		jmp	GAME_EXEC		; enter game
