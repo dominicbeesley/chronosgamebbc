@@ -306,6 +306,7 @@ rom_loaded:
 		lda	#>MO7SCR
 		sta	zp_ptr+1
 		jsr	wait10vs
+		jsr	wait10vs
 @flp2:		ldy	#0
 @flp:		lda	(zp_ptr),Y
 		cmp	#17
