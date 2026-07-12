@@ -11,12 +11,12 @@ GAME_LOAD	:= $1800
 
 game_romslot	:= $80			; where the game looks for rom slot
 
-
 		.zeropage
 zp_tmp:		.res	1
 zp_tmp2:	.res	1
 zp_tmp3:	.res	1
 zp_ptr:		.res	2
+zp_nula_absent:	.res	1
 		.code
 		
 		; *SHADOW OFF
@@ -35,6 +35,7 @@ zp_ptr:		.res	2
 
 @oktube:	
 
+		; select mode 7
 
 		lda	#22
 		jsr	OSWRCH
@@ -43,7 +44,51 @@ zp_ptr:		.res	2
 
 		; detect nula
 
+		sei		; we're going to usurp interrupts for a moment to
+				; do this
 
+
+		; first force a double speed mode 7 by writing &52 to
+		; the VIDPROC (and OS copy)
+
+		lda	#$52
+		sta	sheila_VIDPROC_ctl
+		
+		; now store &40 in NULA control register
+		; if NULA present NULA resets, VIDPROC unaffected
+		; if NULA absent VIDPROC is reset to mode 7 speed (but not ttx, white stripes)
+		lda	#$40
+		sta	SHEILA_NULA_CTLAUX
+
+		ldx	#0	; count of VSYNCS
+		ldy	#0	; count of T1 (100 Hz ticks)
+
+		lda	#$42	; clear T1 and CA1 (VSYNC) interrupt flags
+		sta	sheila_SYSVIA_ifr
+
+@lp:		lda	#$40
+		bit	sheila_SYSVIA_ifr
+		beq	@noT1
+		iny		; count T1
+		sta	sheila_SYSVIA_ifr	; reset interrupt flag for T1
+@noT1:		lda	#$02
+		bit	sheila_SYSVIA_ifr
+		beq	@noCA1
+		inx		; count CA1
+		sta	sheila_SYSVIA_ifr	; reset interrupt flag for CA1
+@noCA1:		cpx	#25
+		bne	@lp
+
+		lda	#0
+		cpy	#40
+		ror	A
+		sta	zp_nula_absent
+
+		lda	#$4b
+		sta	sheila_VIDPROC_ctl	; restore VIDPROC
+
+		cli				; re-enable interrupts
+		
 		; cursor off
 		sei
 		lda	#10
@@ -82,6 +127,33 @@ clp1:		ldx	#40
 		sty	zp_tmp
 		cpy	#200
 		bne	clp2
+
+		lda	#31
+		jsr	OSWRCH
+		lda	#5		
+		jsr	OSWRCH
+		lda	#18
+		jsr	OSWRCH
+
+				
+
+
+		bit	zp_nula_absent
+		bmi	@nonula
+		jsr	PrintI
+		.byte	129, "VideNuLa detected",145,0
+
+		ldx	#<osfilen_chronon
+		stx	osfilechronos+0
+		ldx	#>osfilen_chronon
+		stx	osfilechronos+1
+
+		jmp	@nn
+@nonula:	jsr	PrintI
+		.byte	135, "VideNuLa not present",145,0
+@nn:
+
+
 
 
 		lda	zp_mos_curROM
@@ -162,6 +234,11 @@ full_slot_found:
 
 
 rom_loaded:
+
+		jsr	PrintI
+		.byte	31,5,19,130,"Loading Game...     ",145,0
+
+
 		; *LOAD CHRONOS 1800
 
 		ldx	#<osfilechronos
@@ -169,8 +246,43 @@ rom_loaded:
 		lda	#$FF
 		jsr	OSFILE
 
-		; fade out
 
+		jsr	PrintI
+		.byte	31,5,19,131,"Press a key...      ",145,0
+
+		; musical interlude
+		jsr	song_init
+
+		; set keyboard to autoscan
+		lda	#11
+		sta	sheila_SYSVIA_orb
+
+		lda	#$01
+		sta	sheila_SYSVIA_ifr	; clear keyboard interrupt
+
+@m_loop:	jsr	song_play
+		bcs	@m_done
+
+		lda	#$01
+		bit	sheila_SYSVIA_ifr
+		beq	@m_loop
+		sta	sheila_SYSVIA_ifr
+@m_done:
+
+		jsr	song_finit
+
+
+		; wait up a second
+		ldx	#50
+		stx	zp_tmp
+@wlp:		lda	#19
+		jsr	OSBYTE
+		dec	zp_tmp
+		bne	@wlp
+
+
+		; fade out
+.scope
 		ldx	#$7
 		stx	zp_tmp2			; number of fades
 @flp3:		ldx	#$4			; number of pages
@@ -206,6 +318,51 @@ rom_loaded:
 
 		dec	zp_tmp2
 		bne	@flp3
+.endscope
+
+		jsr	wait10vs
+		jsr	wait10vs
+		jsr	wait10vs
+
+
+		; fade ou2
+.scope
+		ldx	#$7
+		stx	zp_tmp2			; number of fades
+@flp3:		ldx	#$4			; number of pages
+		stx	zp_tmp
+		lda	#<MO7SCR
+		sta	zp_ptr
+		lda	#>MO7SCR
+		sta	zp_ptr+1
+		jsr	wait10vs
+		jsr	wait10vs
+@flp2:		ldy	#0
+@flp:		lda	(zp_ptr),Y
+		cmp	#17
+		bcc	@sk
+		cmp	#24
+		bcs	@sk
+@do:		sec
+		sbc	#1
+		cmp	#16
+		bne	@nxt
+@blk:		lda	#152		; conceal
+@nxt:		sta	(zp_ptr),Y		
+@sk:		iny
+		bne	@flp
+		inc	zp_ptr+1
+		dec	zp_tmp
+		bne	@flp2
+
+		dec	zp_tmp2
+		bne	@flp3
+.endscope
+
+		jsr	wait10vs
+		jsr	wait10vs
+		jsr	wait10vs
+
 
 
 		jmp	GAME_EXEC		; enter game
@@ -221,6 +378,10 @@ exiterr:
 		
 
 load_rom:	
+
+		jsr	PrintI
+		.byte	31,5,19,129,"Loading ROM...      ",145,0
+
 	.ifdef DEBUG
 		lda	#'E'
 		jsr	OSWRCH
@@ -228,6 +389,8 @@ load_rom:
 		ora	#$30
 		jsr	OSWRCH
 	.endif
+
+
 
 		; use OSFILE to load the map data
 
@@ -287,6 +450,23 @@ PrintI:		pla
 		pha
 		rts	
 
+PrintHex:	pha
+		lsr 	A
+		lsr 	A
+		lsr 	A
+		lsr 	A
+		jsr	PrintHexNyb
+		pla
+PrintHexNyb:	AND	#$0F
+		CMP	#$0A		; set carry for +1 if >9	
+		BCC	@noa	; branch if <=9
+		ADC	#6		; adjust if A to F
+					; (six plus carry = 7!)
+@noa:		ADC	#'0'		; add ASCII "0"
+		jsr	OSWRCH
+		rts
+
+
 badtube:	jsr	PrintI
 		.byte	"Sorry, this game doesn't run on the TUBE",13,10,0
 		rts
@@ -294,6 +474,7 @@ badtube:	jsr	PrintI
 		.rodata
 copycmp:	.byte	0,"(C)"
 titcmp:		.byte	"chronos map data",0
+
 
 		.data
 osfileblock:	.word	osfilename
@@ -307,7 +488,8 @@ osfilechronos:	.word	osfilen_chronos
 		.dword	0
 		.dword	0
 		.dword	0
-osfilen_chronos:.byte   "CHRONON",13
+osfilen_chronos:.byte   "CHRONOS",13
+osfilen_chronon:.byte   "CHRONON",13
 
 		.segment	"SPLASH"
 		.incbin 	"splash.mo7"
