@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # grab data from spectrum rom and make a chunky number font by shifting and or'ing the font with itself
+# includes A-F for hex
 
 FONT_BASE=0x3D00
 
@@ -42,13 +43,21 @@ def main(argv):
 	except Exception as e:
 		usage(fh=sys.stderr, msg=f"Error opening output file {args[1] : {e}}", exit=2)
 	try:
-		arr = bytearray([0] * (10*8))
+		arr = bytearray([0] * (16*8))
 
+		#numbers
 		for i in range(10*8):
 			x = data[FONT_BASE + 8*16 + i]
 			x = (x >> 1) | x
-
 			arr[i] = x
+
+		#A-F
+		for i in range(6*8):
+			x = data[FONT_BASE + 8*33 + i]
+			x = (x >> 1) | x
+			arr[i+80] = x
+
+
 
 		fo.write(arr)
 

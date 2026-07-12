@@ -3,11 +3,12 @@
 		.include "oslib.inc"
 		.include "mosrom.inc"
 		.include "debug.inc"
+		.include "chronos.inc"
 
 		.export 	init_irq
 		.export 	frame_ctr
-		.importzp	zp_cycle
-		.import 	chronospipe
+
+	
 
 
 		; wait this many cycles
@@ -54,6 +55,7 @@ CRTC_R0_H_TOT   := 0
 CRTC_R1_H_DISP	:= 1
 CRTC_R2_H_SYNC	:= 2
 CRTC_R4_V_TOT	:= 4
+CRTC_R6_V_DISP	:= 6
 CRTC_R7_V_SYNC	:= 7
 CRTC_R12_ADDR   := 12
 
@@ -95,27 +97,41 @@ CRTC_R12_ADDR   := 12
 ;38	TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
 
 
-; The re-center line between playfield and logo something like this...
-;14	|                               |            H             T
-;15	+------------+------------------+            H             T  <-USR T1 fires here
-;16	| Logo       |                               H             T
-;17	|            |                               H             T
-
 
 
 SCREEN_V_TOT		:= 39
 SCREEN_V_SYNC		:= 34
+
+	.ifdef NULA
+SCREEN_H_TOT		:= 64
+SCREEN_H_SYNC		:= 45
+	.else
 SCREEN_H_TOT		:= 128
 SCREEN_H_SYNC		:= 90
+	.endif
 
 PLAYFIELD_V_TOT		:= 16
+PLAYFIELD_V_DISP		:= 32
+	.ifdef NULA
+PLAYFIELD_H_DISP	:= 32
+	.else
 PLAYFIELD_H_DISP	:= 64
+	.endif
 
 LOGO_V_TOT		:= SCREEN_V_TOT-PLAYFIELD_V_TOT		; goes to end of screen
 LOGO_V_SYNC		:= SCREEN_V_SYNC-PLAYFIELD_V_TOT
+	.ifdef DEBUG
+LOGO_V_DISP		:= 16
+	.else
+LOGO_V_DISP		:= 6
+	.endif
+	.ifdef NULA
+LOGO_H_DISP		:= 18
+LOGO_H_ADJ		:= 9					; this is used to center the logo area
+	.else
 LOGO_H_DISP		:= 36
-
 LOGO_H_ADJ		:= 18					; this is used to center the logo area
+	.endif
 
 
 USR_T1_V		:= 15					; char row on which USR_T1 fires
@@ -154,6 +170,7 @@ init_irq:
 		ldy	#SYS_T1_V+(SCREEN_V_TOT-SCREEN_V_SYNC)
 		jsr	wait_1024y
 
+		jsr	wait_SSS1	; another approx. half line's wait
 
 		ldx	#<(FRAME-2)
 		ldy	#>(FRAME-2)
@@ -220,13 +237,14 @@ wait_PFS:
 .endif
 wait_SSS:	WAIT_N 130
 wait_SSS1:	WAIT_N 44
-
 		;jsr			;6
-wait_16:	nop			;2
+		nop			;2
 		nop			;2
 		jsr	@w		;6+6+2
 @w:		nop			;2
 		rts			;6
+
+
 
 my_irq1:	cld				; ensure decimal mode cleared
 
@@ -235,6 +253,10 @@ my_irq1:	cld				; ensure decimal mode cleared
 		beq	@notSysT1
 
 		sta	sheila_SYSVIA_ifr
+
+;================================================================================
+; SYS T1
+;================================================================================
 
 		; SYS via T1 has fired - we are in second half of screen so fiddle registers to:
 
@@ -245,12 +267,13 @@ my_irq1:	cld				; ensure decimal mode cleared
 		lda	#LOGO_V_TOT-1
 		sta	sheila_CRTC_dat		
 
+
 		; TODO move out of IRQ handler - can be set and forget as we wont reach this point in playfield
 		lda	#CRTC_R7_V_SYNC
 		sta	sheila_CRTC_reg
 		lda	#LOGO_V_SYNC
 		sta	sheila_CRTC_dat		
-		
+
 		jmp	@out
 		
 
@@ -283,9 +306,10 @@ my_irq1:	cld				; ensure decimal mode cleared
 		lda	#>(chronospipe/8)
 		sta	sheila_CRTC_dat
 
+
+
 		; wait a character row...we should be now in blanking area just after last scan line of first part		
 		jsr	wait_PFS		; this number arrived at by experimentation....
-
 
 
 		DEBUG_STRIPE	$F73
@@ -295,26 +319,40 @@ my_irq1:	cld				; ensure decimal mode cleared
 		; we need to fiddle one scan line to be slightly longer to center the smaller area without upsetting
 		; the sync train
 		
+		lda	#$00
+		sta	sheila_USRVIA_orb
+
 		lda	#CRTC_R0_H_TOT
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT+LOGO_H_ADJ-1
 		sta	sheila_CRTC_dat
-		lda	#$0
-		sta	sheila_USRVIA_orb
 
+	.ifdef NULA
 		; don't blank some pixels at left hand side to hide drawing the point at which the 
 		; playfield start to render should have passed so we can do this safely now
 		lda	#$30
 		sta	SHEILA_NULA_CTLAUX
-
+	.else
+		nop
+		nop
+		nop
+		nop
+	.endif
 
 		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
 		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
 
-		; no sub-scroll in log area, this hopefully in the blanking period
+	.ifdef NULA
+		; no sub-scroll in logo area, this hopefully in the blanking period
 		lda	#$20
 		sta	SHEILA_NULA_CTLAUX
-
+	.else
+		nop
+		nop
+		nop
+		nop
+	.endif
+	
 		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
 		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
 
@@ -327,12 +365,13 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_dat
 
 
+		lda	#$01
+		sta	sheila_USRVIA_orb
+
 		lda	#CRTC_R0_H_TOT
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT-1
 		sta	sheila_CRTC_dat
-		lda	#$FF
-		sta	sheila_USRVIA_orb
 
 		lda	#CRTC_R2_H_SYNC
 		sta	sheila_CRTC_reg
@@ -341,56 +380,70 @@ my_irq1:	cld				; ensure decimal mode cleared
 
 
 		inc 	frame_ctr
-
-
-		bne	@out
+		jmp	@out
 
 @notUsrT1:	lda	sheila_SYSVIA_ifr
 		and	#$02
-		beq	@ukirq
-		sta	sheila_SYSVIA_ifr
+		bne	:+
+		jmp	@ukirq
+:		sta	sheila_SYSVIA_ifr
 
 ;================================================================================
-; USR T1
+; VSYNC!
 ;================================================================================
 
+
+		; TODO - check this might need to go elsewhere / be the cause of the glitchy scrolling?
 
 		; vsync set playfield top
 
 		; set next field start address to playfield
 
-		lda	#CRTC_R12_ADDR+1
-		sta	sheila_CRTC_reg
-		lda	playfield_top_crtc
-		sta	sheila_CRTC_dat
+
 		lda	#CRTC_R12_ADDR
 		sta	sheila_CRTC_reg
 		lda	playfield_top_crtc+1
 		sta	sheila_CRTC_dat
+		lda	#CRTC_R12_ADDR+1
+		sta	sheila_CRTC_reg
+		lda	playfield_top_crtc
+		sta	sheila_CRTC_dat
 
 
 		jsr	wait_SSS1	; slightly less than half a scan line which is ~64
-
+		
 
 		; we need to fiddle one scan line to be slightly shorter to center the larger playfield
 		
+
+		lda	#$02
+		ora	sheila_USRVIA_orb
+		sta	sheila_USRVIA_orb
+
 		lda	#CRTC_R0_H_TOT
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT-LOGO_H_ADJ-1
 		sta	sheila_CRTC_dat
 
-		; wait until next scan line and adjust the rest to have H-sync earlier but back to normal line length
-		jsr	wait_SSS	; slightly less than a scan line which is 128
+
+		jsr	wait_SSS1
+
+
+		lda	#$FD
+		and	sheila_USRVIA_orb
+		sta	sheila_USRVIA_orb
+
+		lda	#CRTC_R2_H_SYNC
+		sta	sheila_CRTC_reg
+		lda	#SCREEN_H_SYNC
+		sta	sheila_CRTC_dat
 
 		lda	#CRTC_R0_H_TOT
 		sta	sheila_CRTC_reg
 		lda	#SCREEN_H_TOT-1
 		sta	sheila_CRTC_dat
 
-		lda	#CRTC_R2_H_SYNC
-		sta	sheila_CRTC_reg
-		lda	#SCREEN_H_SYNC
-		sta	sheila_CRTC_dat
+
 
 		; set H DISP to size of playfield in bytes
 		lda	#CRTC_R1_H_DISP
@@ -399,24 +452,22 @@ my_irq1:	cld				; ensure decimal mode cleared
 		sta	sheila_CRTC_dat
 
 
+
+	.ifdef NULA
 		; blank some pixels at left hand side to hide drawing
-		lda	#$38
+		lda	#$34
 		sta	SHEILA_NULA_CTLAUX
 
 
-		lda	have_nula
-		beq	@nonula
 		; apply nula scroll offset
-		lda	zp_cycle
+		lda	zp_next_cycle
 		sec
 		sbc	#1		
-		and	#3
-		eor	#3
-		clc
-		rol	A
+		and	#7
+		eor	#7
 		ora	#$20
 		sta	SHEILA_NULA_CTLAUX
-@nonula:		
+	.endif
 
 
 @out:		lda	zp_mos_INT_A
