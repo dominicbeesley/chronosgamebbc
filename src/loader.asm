@@ -234,12 +234,43 @@ full_slot_found:
 
 
 rom_loaded:
+
+		jsr	PrintI
+		.byte	31,5,19,130,"Loading Game...     ",145,0
+
+
 		; *LOAD CHRONOS 1800
 
 		ldx	#<osfilechronos
 		ldy	#>osfilechronos
 		lda	#$FF
 		jsr	OSFILE
+
+
+		jsr	PrintI
+		.byte	31,5,19,131,"Press a key...      ",145,0
+
+		; musical interlude
+		jsr	song_init
+
+		; set keyboard to autoscan
+		lda	#11
+		sta	sheila_SYSVIA_orb
+
+		lda	#$01
+		sta	sheila_SYSVIA_ifr	; clear keyboard interrupt
+
+@m_loop:	jsr	song_play
+		bcs	@m_done
+
+		lda	#$01
+		bit	sheila_SYSVIA_ifr
+		beq	@m_loop
+		sta	sheila_SYSVIA_ifr
+@m_done:
+
+		jsr	song_finit
+
 
 		; wait up a second
 		ldx	#50
@@ -248,7 +279,6 @@ rom_loaded:
 		jsr	OSBYTE
 		dec	zp_tmp
 		bne	@wlp
-
 
 
 		; fade out
@@ -348,6 +378,10 @@ exiterr:
 		
 
 load_rom:	
+
+		jsr	PrintI
+		.byte	31,5,19,129,"Loading ROM...      ",145,0
+
 	.ifdef DEBUG
 		lda	#'E'
 		jsr	OSWRCH
@@ -355,6 +389,8 @@ load_rom:
 		ora	#$30
 		jsr	OSWRCH
 	.endif
+
+
 
 		; use OSFILE to load the map data
 

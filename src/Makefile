@@ -9,8 +9,8 @@ DEPS=$(INCS)
 TARGETS=gameN.bin game.bin sound.bin loader.bin map.rom
 OBJS_game.bin=		game irq render 	 zp_shared data_shared
 OBJS_gameN.bin=	game irq render_nula zp_shared data_shared
-OBJS_sound.bin=	sound music_gen
-OBJS_loader.bin= loader
+OBJS_sound.bin=	sound music_gen music
+OBJS_loader.bin= loader music_gen music
 OBJS_map.rom= mapheader
 SPECSRC=./specSrc
 
@@ -70,7 +70,7 @@ $(BUILD)/sound.bin:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_sound.bin))) so
 
 $(BUILD)/loader.bin:$(addprefix $(BUILD)/, $(addsuffix .o, $(OBJS_loader.bin))) loader.cfg
 	$(LD) -vm -Ln $(basename $@).sy2 -m $(basename $@).map --dbgfile $(basename $@).dbg -o $@ -C $(filter %.cfg, $^) $(filter %.o, $^) $(LIBS)
-	echo "$$.LOADER FFFF7000 FFFF7400" >$@.inf
+	echo "$$.LOADER FFFF5C00 FFFF6000" >$@.inf
 	$(SCRIPTS)/ca65lstupdate.pl $(basename $@).dbg $(BUILD)
 	$(SCRIPTS)/getsymbols.pl <$(basename $@).sy2 >$(basename $@).1.noi
 	$(SCRIPTS)/ld65debugsymbols.pl $(basename $@).dbg $(basename $@).2.noi
